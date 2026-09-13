@@ -267,6 +267,38 @@ router.delete('/guilds/:guildId/autoresponders/:id', requireAuth, requireGuild, 
 /* ── embed preview ───────────────────────────────────────────────────── */
 
 /**
+ * Discord shows mentions as readable pills, not raw `<@123>` markup, so the
+ * preview resolves them too — otherwise the preview looks wrong in exactly
+ * the place people are most likely to be checking.
+ */
+function humanise(text, guild) {
+  if (typeof text !== 'string') return text;
+  return text
+    .replace(/<@!?(\d+)>/g, (match, id) => `@${guild.members.cache.get(id)?.displayName ?? 'member'}`)
+    .replace(/<@&(\d+)>/g, (match, id) => `@${guild.roles.cache.get(id)?.name ?? 'role'}`)
+    .replace(/<#(\d+)>/g, (match, id) => `#${guild.channels.cache.get(id)?.name ?? 'channel'}`);
+}
+
+/** Walk an embed and humanise every string a viewer will read. */
+function humaniseEmbed(embed, guild) {
+  if (!embed) return embed;
+  const out = { ...embed };
+  for (const key of ['title', 'description']) {
+    if (out[key]) out[key] = humanise(out[key], guild);
+  }
+  if (out.footer?.text) out.footer = { ...out.footer, text: humanise(out.footer.text, guild) };
+  if (out.author?.name) out.author = { ...out.author, name: humanise(out.author.name, guild) };
+  if (out.fields) {
+    out.fields = out.fields.map((field) => ({
+      ...field,
+      name: humanise(field.name, guild),
+      value: humanise(field.value, guild),
+    }));
+  }
+  return out;
+}
+
+/**
  * Renders a template exactly as the bot would, so the dashboard preview is
  * never a lookalike — it is the same code path.
  */
@@ -289,9 +321,11 @@ router.post('/guilds/:guildId/preview', requireAuth, requireGuild, (request, res
     extra: { level: 5, xp: 1234, 'inviter.name': 'someone' },
   });
 
+  const embed = payload.embeds?.[0]?.toJSON?.() ?? payload.embeds?.[0] ?? null;
+
   response.json({
-    content: payload.content ?? '',
-    embed: payload.embeds?.[0]?.toJSON?.() ?? payload.embeds?.[0] ?? null,
+    content: humanise(payload.content ?? '', request.guild),
+    embed: humaniseEmbed(embed, request.guild),
   });
 });
 
