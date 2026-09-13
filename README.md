@@ -3,7 +3,7 @@
 An all-in-one Discord bot — moderation, music, levels, economy, logging, automod, anti-nuke,
 tickets, giveaways and more — with a web dashboard where **every** setting is a form field.
 
-**281 commands · 112 settings · one process.**
+**286 commands · 112 settings · one process.**
 
 ---
 
@@ -19,7 +19,7 @@ tickets, giveaways and more — with a web dashboard where **every** setting is 
 | **Logging** | Messages, members, roles, channels, voice and moderation — one channel, or five separate ones. |
 | **Levels** | XP for chatting, leaderboards, voice-time tracking, and roles granted automatically at the levels you choose (stacking or replacing). |
 | **Economy** | Cash and bank, daily streaks, work, crime, rob, pay, gambling, slots, and a shop that can grant roles. |
-| **Music** | YouTube and Spotify links or plain search, a real queue, loop modes, volume, shuffle, skip-to, and an optional DJ role. |
+| **Music** | YouTube and Spotify links or plain search, a real queue, loop modes, volume, shuffle, skip-to, saved playlists, and an optional DJ role. |
 | **Tickets** | Button-driven private support channels with claiming and transcripts. |
 | **Giveaways** | Button entry with a live count, automatic drawing, reroll and cancel. |
 | **VoiceMaster** | Join-to-create temporary voice channels, with lock/hide/claim buttons. |

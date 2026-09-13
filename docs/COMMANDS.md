@@ -1,6 +1,6 @@
 # Command guide
 
-Every command, what it does, and how to use it. **281** commands in total.
+Every command, what it does, and how to use it. **286** commands in total.
 
 The default prefix is `.`; change it with `.prefix <new>`. Mentioning the bot always works too.
 
@@ -16,7 +16,7 @@ In the usage lines, `<angle brackets>` are required and `[square brackets]` are 
 - [Information](#information) — 16 commands
 - [Levels](#levels) — 10 commands
 - [Moderation](#moderation) — 57 commands
-- [Music](#music) — 18 commands
+- [Music](#music) — 23 commands
 - [Owner](#owner) — 9 commands
 - [Roles](#roles) — 22 commands
 - [Social](#social) — 6 commands
@@ -3439,6 +3439,93 @@ Accepts a YouTube link, a YouTube playlist, a Spotify track/album/playlist link,
 ```
 
 > Bot needs: `Connect`, `Speak`
+
+### `.playlist delete`
+
+Delete one of your playlists.
+
+**Usage:** `.playlist delete <name>`
+
+**Aliases:** `.playlist remove`
+
+| Argument | Required | What it is |
+| --- | --- | --- |
+| `name` | yes | which playlist |
+
+**Examples:**
+
+```
+.playlist delete focus
+```
+
+### `.playlist list`
+
+Show the playlists you have saved.
+
+**Usage:** `.playlist list`
+
+**Aliases:** `.playlists`
+
+**Examples:**
+
+```
+.playlist list
+```
+
+### `.playlist load`
+
+Queue everything in one of your playlists.
+
+**Usage:** `.playlist load <name>`
+
+**Aliases:** `.playlist play`
+
+| Argument | Required | What it is |
+| --- | --- | --- |
+| `name` | yes | which playlist |
+
+**Examples:**
+
+```
+.playlist load focus
+```
+
+> Bot needs: `Connect`, `Speak`
+
+### `.playlist save`
+
+Saves the track that is playing plus everything queued behind it. Playlists belong to you, not to the server, so you can load them anywhere the bot is.
+
+**Usage:** `.playlist save <name>`
+
+| Argument | Required | What it is |
+| --- | --- | --- |
+| `name` | yes | a name for the playlist |
+
+**Examples:**
+
+```
+.playlist save focus
+.playlist save "friday night"
+```
+
+### `.playlist show`
+
+List the tracks inside one of your playlists.
+
+**Usage:** `.playlist show <name>`
+
+**Aliases:** `.playlist view`
+
+| Argument | Required | What it is |
+| --- | --- | --- |
+| `name` | yes | which playlist |
+
+**Examples:**
+
+```
+.playlist show focus
+```
 
 ### `.queue`
 

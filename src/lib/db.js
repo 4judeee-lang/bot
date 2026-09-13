@@ -339,12 +339,6 @@ CREATE TABLE IF NOT EXISTS autoroles (
   PRIMARY KEY (guild_id, role_id, kind)
 );
 
-CREATE TABLE IF NOT EXISTS vanity_roles (
-  guild_id TEXT NOT NULL,
-  role_id  TEXT NOT NULL,
-  PRIMARY KEY (guild_id, role_id)
-);
-
 CREATE TABLE IF NOT EXISTS playlists (
   id       INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id  TEXT NOT NULL,

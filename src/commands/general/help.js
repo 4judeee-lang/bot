@@ -26,6 +26,8 @@ const CATEGORY_EMOJI = {
   Tickets: '🎫',
   Voice: '🎙️',
   Owner: '👑',
+  Social: '🎧',
+  Counters: '🔢',
 };
 
 /** The detailed, single-command guide. */
