@@ -118,6 +118,40 @@ const VARIABLE_ALIASES = {
   'channel.id': 'channel.id',
 };
 
+/**
+ * Resolve `/emojiname` into that server's custom emoji, `/emojinamex3` into
+ * three of it.
+ *
+ * This is how templates written for other bots do spacing: a transparent
+ * emoji repeated a few times is a fixed-width blank that Discord will not
+ * collapse the way it collapses spaces. Without this the alias prints as
+ * literal text and every bit of alignment in the template is lost.
+ *
+ * URLs are held back first. A link ending `/guide` must not turn into an
+ * emoji because the server happens to have one by that name.
+ */
+function applyEmojiAliases(text, guild) {
+  const cache = guild?.emojis?.cache;
+  if (!cache || typeof text !== 'string' || !text.includes('/')) return text;
+
+  const urls = [];
+  const masked = text.replace(/<a?:\w+:\d+>|https?:\/\/\S+/gi, (match) => {
+    urls.push(match);
+    return `\u0000${urls.length - 1}\u0000`;
+  });
+
+  const resolved = masked.replace(/\/([a-z0-9_]+?)(?:x(\d{1,2}))?(?![a-z0-9_])/gi, (match, name, times) => {
+    const wanted = name.toLowerCase();
+    const emoji = typeof cache.find === 'function'
+      ? cache.find((candidate) => candidate.name?.toLowerCase() === wanted)
+      : undefined;
+    if (!emoji) return match; // Not one of ours — leave it exactly as written.
+    return String(emoji).repeat(Math.min(Math.max(Number(times) || 1, 1), 25));
+  });
+
+  return resolved.replace(/\u0000(\d+)\u0000/g, (_, index) => urls[Number(index)]);
+}
+
 /** Replace {variables} in a string. Unknown variables are left untouched. */
 function apply(text, scope) {
   if (typeof text !== 'string') return text;
@@ -190,7 +224,10 @@ function render(template, context = {}) {
   // been flattened onto a single line is badly broken in ways that are not
   // obvious — `-#` stops applying, blank lines vanish — so this gives a
   // spelling of "new line here" that nothing in between can eat.
-  const text = apply(String(template ?? '').replace(/\\n/g, '\n'), scope);
+  const text = applyEmojiAliases(
+    apply(String(template ?? '').replace(/\\n/g, '\n'), scope),
+    context.guild,
+  );
 
   if (!text.trim()) return { content: '' };
   if (!text.includes('{embed}')) return { content: truncate(text, 2000) };
@@ -348,4 +385,4 @@ function stringify({ content, color, title, url, description, thumbnail, image, 
   return parts.length ? `{embed}${parts.join('$v')}` : '';
 }
 
-module.exports = { render, apply, buildScope, stringify, VARIABLES };
+module.exports = { render, apply, applyEmojiAliases, buildScope, stringify, VARIABLES };

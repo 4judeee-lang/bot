@@ -209,6 +209,34 @@ test('deliberate padding survives, ordinary whitespace does not', () => {
   assert.equal(sloppy.description, 'Welcome', 'plain spaces around a value are still tidied away');
 });
 
+test('/emojiname resolves to a server emoji, with a repeat count', () => {
+  const emojis = [{ name: 'invis', toString: () => '<:invis:1>' }, { name: 'star', toString: () => '<:star:2>' }];
+  const guild = { name: 'G', id: '1', memberCount: 2, emojis: { cache: { find: (fn) => emojis.find(fn) } } };
+  const context = { guild, user: fakeContext.user };
+
+  const single = variables.render('{embed}$v{description: /star hello}', context);
+  assert.equal(single.embeds[0].data.description, '<:star:2> hello');
+
+  const repeated = variables.render('{embed}$v{description: /invisx3 end}', context);
+  assert.equal(repeated.embeds[0].data.description, '<:invis:1><:invis:1><:invis:1> end', 'xN repeats it');
+
+  const unknown = variables.render('{embed}$v{description: /nosuchemoji stays}', context);
+  assert.equal(unknown.embeds[0].data.description, '/nosuchemoji stays', 'an unknown alias is left alone');
+});
+
+test('an emoji alias never eats a URL or an existing emoji', () => {
+  const emojis = [{ name: 'guide', toString: () => '<:guide:9>' }];
+  const guild = { name: 'G', id: '1', memberCount: 2, emojis: { cache: { find: (fn) => emojis.find(fn) } } };
+
+  const out = variables.render(
+    '{embed}$v{description: [guide](https://example.com/guide) /guide <:guide:9>}',
+    { guild, user: fakeContext.user },
+  );
+  const description = out.embeds[0].data.description;
+  assert.ok(description.includes('https://example.com/guide'), 'the link path is untouched');
+  assert.equal((description.match(/<:guide:9>/g) ?? []).length, 2, 'only the bare alias was converted');
+});
+
 test('variable names from other bots resolve', () => {
   const out = variables.render(
     '{embed}$v{description: {user} joined {server.name}, member {member.count}}',
