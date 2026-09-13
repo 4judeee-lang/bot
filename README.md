@@ -71,8 +71,9 @@ In the Developer Portal → **Bot**, enable:
 
 ### 5. Invite the bot
 
-Run `.invite` once it is online, or build the URL yourself. The bot asks only for the permissions
-it actually uses — no Administrator shortcut.
+Run `npm run invite` for the link, or `.invite` once the bot is online. It asks only for the
+permissions it actually uses — no Administrator shortcut — and both places build the link from the
+same list in `src/lib/permissions.js`.
 
 ### 6. Start it
 
@@ -80,9 +81,14 @@ it actually uses — no Administrator shortcut.
 npm start           # bot + dashboard
 npm run bot         # bot only
 npm run web         # dashboard only (front-end work; no Discord connection)
+npm run invite      # print the link that adds the bot to a server
 npm run deploy      # register slash commands globally
 npm run deploy -- --dev   # register them instantly into DEV_GUILD_ID
 ```
+
+**On a Mac?** [`docs/MACOS-SETUP.md`](docs/MACOS-SETUP.md) walks through the whole thing from a
+fresh machine — installing Node, creating the Discord application, and what to do when each of the
+usual errors appears.
 
 ---
 

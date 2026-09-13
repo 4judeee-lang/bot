@@ -5,6 +5,7 @@ const { SETTINGS, CATEGORIES, CATEGORY_META } = require('../../lib/settingsSchem
 const { VARIABLES } = require('../../lib/variables');
 const store = require('../../lib/db');
 const config = require('../../config');
+const { inviteUrl } = require('../../lib/permissions');
 
 const router = express.Router();
 
@@ -90,9 +91,7 @@ router.get('/dashboard', requireLogin, (request, response) => {
   response.render('servers', {
     title: 'Your servers',
     guilds: managed,
-    inviteBase: config.clientId
-      ? `https://discord.com/oauth2/authorize?client_id=${config.clientId}&permissions=1101658527831&scope=bot%20applications.commands`
-      : null,
+    inviteBase: inviteUrl(config.clientId),
   });
 });
 

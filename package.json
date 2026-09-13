@@ -12,6 +12,7 @@
     "bot": "node src/index.js --no-web",
     "web": "node src/web/standalone.js",
     "deploy": "node scripts/deploy-commands.js",
+    "invite": "node scripts/invite.js",
     "docs": "node scripts/generate-docs.js",
     "check": "node scripts/validate.js",
     "test": "node scripts/validate.js && node scripts/selftest.js",

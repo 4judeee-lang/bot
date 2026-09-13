@@ -1,27 +1,14 @@
 'use strict';
 
-const { version: djsVersion, PermissionsBitField } = require('discord.js');
+const { version: djsVersion } = require('discord.js');
 const os = require('node:os');
 const store = require('../../lib/db');
 const { relative, longDate, formatNumber, formatDuration, truncate, titleCase } = require('../../lib/util');
 const emojis = require('../../lib/emojis');
+const { INVITE_PERMISSIONS } = require('../../lib/permissions');
 const config = require('../../config');
 
 const VERIFICATION = ['none', 'low', 'medium', 'high', 'highest'];
-
-/**
- * Everything the bot needs for its features, and nothing more — no
- * Administrator shortcut, so server owners can see exactly what they grant.
- */
-const INVITE_PERMISSIONS = [
-  'ViewChannel', 'SendMessages', 'SendMessagesInThreads', 'EmbedLinks', 'AttachFiles',
-  'ReadMessageHistory', 'AddReactions', 'UseExternalEmojis', 'ManageMessages',
-  'ManageChannels', 'ManageRoles', 'ManageNicknames', 'ManageGuildExpressions',
-  'KickMembers', 'BanMembers', 'ModerateMembers', 'ManageGuild', 'ViewAuditLog',
-  'Connect', 'Speak', 'MuteMembers', 'DeafenMembers', 'MoveMembers', 'ManageWebhooks',
-]
-  .reduce((bits, flag) => bits | PermissionsBitField.Flags[flag], 0n)
-  .toString();
 
 module.exports = [
   {
