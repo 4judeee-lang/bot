@@ -1,0 +1,55 @@
+<%- include('partials/header') %>
+
+<div class="wrap">
+  <div class="page-head">
+    <h1>Your servers</h1>
+    <p>Servers where you have <strong>Manage Server</strong>. Pick one to configure it.</p>
+  </div>
+
+  <% if (!guilds.length) { %>
+    <div class="empty-state">
+      <p>You do not have Manage Server anywhere yet.</p>
+      <p class="small">If you just changed your permissions, sign out and back in to refresh the list.</p>
+    </div>
+  <% } else { %>
+    <div class="server-grid">
+      <% guilds.forEach((guild) => { %>
+        <% if (guild.present) { %>
+          <a class="server-card" href="/dashboard/<%= guild.id %>">
+        <% } else { %>
+          <a class="server-card" href="<%= inviteBase ? `${inviteBase}&guild_id=${guild.id}` : '#' %>" rel="noopener">
+        <% } %>
+          <div class="server-top">
+            <% if (guild.icon) { %>
+              <img class="server-icon" src="<%= guild.icon %>" alt="" width="46" height="46" loading="lazy">
+            <% } else { %>
+              <div class="server-icon server-icon-fallback" aria-hidden="true"><%= guild.name.slice(0, 2).toUpperCase() %></div>
+            <% } %>
+            <div style="min-width:0">
+              <div class="server-name"><%= guild.name %></div>
+              <div class="server-meta">
+                <% if (guild.present && guild.memberCount) { %>
+                  <%= guild.memberCount.toLocaleString() %> members
+                <% } else if (guild.owner) { %>
+                  You own this server
+                <% } else { %>
+                  Manage Server
+                <% } %>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <% if (guild.present) { %>
+              <span class="pill pill-live">● Configure</span>
+            <% } else { %>
+              <span class="pill pill-muted">+ Add the bot</span>
+            <% } %>
+          </div>
+        </a>
+      <% }) %>
+    </div>
+  <% } %>
+</div>
+
+<%- include('partials/footer') %>

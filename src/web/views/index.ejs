@@ -1,0 +1,127 @@
+<%- include('partials/header') %>
+
+<section class="hero">
+  <div class="wrap">
+    <span class="eyebrow">⚡ <%= stats.commands.toLocaleString() %> commands, one bot</span>
+    <h1>Everything your Discord server needs</h1>
+    <p class="hero-sub">
+      Moderation that keeps receipts, music, levels, economy, logging, automod, anti-nuke, tickets and giveaways —
+      with a dashboard where every single setting is a form field, not a command you have to memorise.
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-primary btn-lg" href="/dashboard">Open the dashboard</a>
+      <a class="btn btn-ghost btn-lg" href="/guide">Read the command guide</a>
+    </div>
+
+    <div class="stat-row">
+      <div>
+        <span class="stat-value"><%= stats.guilds.toLocaleString() %></span>
+        <span class="stat-label">Servers</span>
+      </div>
+      <div>
+        <span class="stat-value"><%= stats.users.toLocaleString() %></span>
+        <span class="stat-label">Members</span>
+      </div>
+      <div>
+        <span class="stat-value"><%= stats.commands.toLocaleString() %></span>
+        <span class="stat-label">Commands</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section-alt">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>One bot instead of nine</h2>
+      <p>Every module works on its own and can be switched off entirely if you do not want it.</p>
+    </div>
+
+    <div class="feature-grid">
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">🔨</div>
+        <h3>Moderation with memory</h3>
+        <p>Ban, kick, timeout, jail, warn and purge — each one numbered, logged, and searchable per member. Temporary punishments lift themselves.</p>
+      </article>
+
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">🧨</div>
+        <h3>Strip &amp; anti-nuke</h3>
+        <p><code>strip</code> pulls every role off a compromised account after a confirmation, and stores them so you can hand them back. Anti-nuke catches the rest.</p>
+      </article>
+
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">🎵</div>
+        <h3>Music</h3>
+        <p>YouTube, Spotify links and search, with a real queue, loop modes, volume, shuffle and an optional DJ role.</p>
+      </article>
+
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">📈</div>
+        <h3>Levels &amp; rewards</h3>
+        <p>XP for chatting, a leaderboard, and roles handed out automatically at the levels you choose.</p>
+      </article>
+
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">🛡️</div>
+        <h3>Automod</h3>
+        <p>Invites, links, spam, caps, mass mentions and your own word list — with the punishment you pick and roles that bypass it.</p>
+      </article>
+
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">📜</div>
+        <h3>Logging</h3>
+        <p>Messages, members, roles, channels, voice and moderation — all in one channel, or split across five.</p>
+      </article>
+
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">🎫</div>
+        <h3>Tickets &amp; giveaways</h3>
+        <p>Button-driven support channels with transcripts, and giveaways that draw winners on their own.</p>
+      </article>
+
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">🎨</div>
+        <h3>Your colours</h3>
+        <p>Set the embed colours once and every reply the bot sends matches your server — success, error and warning included.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Configure it properly</h2>
+      <p>
+        Every setting has a real form control — a channel picker, a role picker, a colour picker, a toggle.
+        Welcome messages have a live preview that runs the same rendering code the bot does, so what you see is
+        exactly what gets posted.
+      </p>
+    </div>
+
+    <div class="feature-grid">
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">📝</div>
+        <h3>Message templates</h3>
+        <p>Write plain text or build an embed. Drop in <code>{user.mention}</code>, <code>{guild.count}</code> and the rest.</p>
+      </article>
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">📚</div>
+        <h3>A guide for every command</h3>
+        <p>Each command explains what it does, what every argument means, and shows worked examples — in Discord and on the web.</p>
+      </article>
+      <article class="feature">
+        <div class="feature-icon" aria-hidden="true">⌨️</div>
+        <h3>Prefix and slash</h3>
+        <p>Use <code>.ban</code> or <code>/ban</code> — the same command, the same arguments, either way you like.</p>
+      </article>
+    </div>
+
+    <p class="mt-2">
+      <a class="btn btn-primary" href="/dashboard">Configure your server</a>
+    </p>
+  </div>
+</section>
+
+<%- include('partials/footer') %>

@@ -1,0 +1,81 @@
+<div class="field" data-field="<%= setting.key %>">
+  <div class="field-label">
+    <label for="f-<%= setting.key %>"><%= setting.label %></label>
+    <div class="hint"><%= setting.description %></div>
+    <code class="key"><%= setting.key %></code>
+  </div>
+
+  <div class="field-control">
+    <% if (setting.type === 'boolean') { %>
+      <label class="switch">
+        <input type="checkbox" id="f-<%= setting.key %>" data-setting="<%= setting.key %>" data-type="boolean">
+        <span class="track" aria-hidden="true"></span>
+        <span class="state">Off</span>
+      </label>
+
+    <% } else if (setting.type === 'number') { %>
+      <input type="number" id="f-<%= setting.key %>" data-setting="<%= setting.key %>" data-type="number"
+             min="<%= setting.min ?? 0 %>" max="<%= setting.max ?? 1000000 %>" step="1">
+
+    <% } else if (setting.type === 'color') { %>
+      <div class="color-field">
+        <input type="color" id="f-<%= setting.key %>" data-setting="<%= setting.key %>" data-type="color" aria-label="<%= setting.label %> colour picker">
+        <input type="text" data-color-text="<%= setting.key %>" maxlength="7" spellcheck="false" aria-label="<%= setting.label %> hex value">
+      </div>
+
+    <% } else if (setting.type === 'select') { %>
+      <select id="f-<%= setting.key %>" data-setting="<%= setting.key %>" data-type="select">
+        <% setting.options.forEach((option) => { %>
+          <option value="<%= option %>"><%= option %></option>
+        <% }) %>
+      </select>
+
+    <% } else if (setting.type === 'channel' || setting.type === 'category') { %>
+      <select id="f-<%= setting.key %>" data-setting="<%= setting.key %>" data-type="<%= setting.type %>"
+              data-populate="<%= setting.type === 'category' ? 'category' : 'text' %>">
+        <option value="">Not set</option>
+      </select>
+
+    <% } else if (setting.type === 'role') { %>
+      <select id="f-<%= setting.key %>" data-setting="<%= setting.key %>" data-type="role" data-populate="role">
+        <option value="">Not set</option>
+      </select>
+
+    <% } else if (setting.type === 'channels' || setting.type === 'roles') { %>
+      <div class="chips" id="f-<%= setting.key %>" data-chips="<%= setting.key %>" data-type="<%= setting.type %>"
+           data-empty="<%= setting.type === 'roles' ? 'No roles selected' : 'No channels selected' %>"></div>
+      <div class="list-input">
+        <select data-adder-for="<%= setting.key %>" data-populate="<%= setting.type === 'roles' ? 'role' : 'all' %>"
+                aria-label="Add to <%= setting.label %>">
+          <option value="">Choose…</option>
+        </select>
+        <button type="button" class="btn btn-sm" data-add="<%= setting.key %>">Add</button>
+      </div>
+
+    <% } else if (setting.type === 'strings') { %>
+      <div class="chips" id="f-<%= setting.key %>" data-chips="<%= setting.key %>" data-type="strings" data-empty="Nothing added"></div>
+      <div class="list-input">
+        <input type="text" data-adder-for="<%= setting.key %>" placeholder="Type and press Add" aria-label="Add to <%= setting.label %>">
+        <button type="button" class="btn btn-sm" data-add="<%= setting.key %>">Add</button>
+      </div>
+
+    <% } else if (setting.type === 'template' || setting.type === 'text') { %>
+      <textarea id="f-<%= setting.key %>" data-setting="<%= setting.key %>" data-type="template"
+                spellcheck="false" rows="5" placeholder="Plain text, or start with {embed} for an embed"></textarea>
+      <div class="flex-between mt-2">
+        <button type="button" class="btn btn-sm btn-ghost" data-preview="<%= setting.key %>">Preview</button>
+        <span class="dim small">Click a variable to insert it</span>
+      </div>
+      <div class="var-list">
+        <% ['user.mention', 'user.name', 'guild.name', 'guild.count', 'user.avatar', 'guild.icon'].forEach((variable) => { %>
+          <button type="button" class="var-chip" data-insert="<%= setting.key %>" data-variable="{<%= variable %>}">{<%= variable %>}</button>
+        <% }) %>
+      </div>
+      <div data-preview-target="<%= setting.key %>" class="mt-2" hidden></div>
+
+    <% } else { %>
+      <input type="text" id="f-<%= setting.key %>" data-setting="<%= setting.key %>" data-type="string"
+             <%= setting.max ? `maxlength="${setting.max}"` : '' %>>
+    <% } %>
+  </div>
+</div>

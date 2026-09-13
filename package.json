@@ -1,0 +1,46 @@
+{
+  "name": "vex-bot",
+  "version": "1.0.0",
+  "description": "Vex — an all-in-one Discord utility bot (moderation, music, levels, economy, automod, tickets, giveaways and more) with a full web dashboard.",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "bot": "node src/index.js --no-web",
+    "web": "node src/web/standalone.js",
+    "deploy": "node scripts/deploy-commands.js",
+    "docs": "node scripts/generate-docs.js",
+    "check": "node scripts/validate.js",
+    "test": "node scripts/validate.js && node scripts/selftest.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "moderation",
+    "music",
+    "dashboard"
+  ],
+  "license": "MIT",
+  "overrides": {
+    "qs": "^6.16.0",
+    "tar": "^7.5.22"
+  },
+  "dependencies": {
+    "@discordjs/rest": "^2.4.0",
+    "@discordjs/voice": "^0.17.0",
+    "better-sqlite3": "^11.5.0",
+    "cookie-parser": "^1.4.7",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
+    "express": "^5.2.1",
+    "express-session": "^1.18.1",
+    "libsodium-wrappers": "^0.7.15",
+    "opusscript": "^0.0.8",
+    "play-dl": "^1.9.7",
+    "prism-media": "^1.3.5"
+  }
+}

@@ -1,0 +1,17 @@
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <p>Vex — an all-in-one Discord bot. Self-hosted and yours to configure.</p>
+      <nav>
+        <a href="/guide">Command guide</a>
+        <a href="/dashboard">Dashboard</a>
+        <% if (config.supportServer) { %><a href="<%= config.supportServer %>" rel="noopener noreferrer">Support</a><% } %>
+      </nav>
+    </div>
+  </footer>
+
+  <div class="toast-stack" id="toasts" role="status" aria-live="polite"></div>
+  <script src="/static/js/app.js" defer></script>
+</body>
+</html>

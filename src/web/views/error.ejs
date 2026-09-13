@@ -1,0 +1,15 @@
+<%- include('partials/header') %>
+
+<div class="wrap error-page">
+  <div>
+    <div class="error-code"><%= code %></div>
+    <h1><%= title %></h1>
+    <p class="muted"><%= message %></p>
+    <p class="mt-2">
+      <a class="btn btn-primary" href="/">Back to the start</a>
+      <a class="btn btn-ghost" href="/guide">Command guide</a>
+    </p>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

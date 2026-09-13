@@ -1,0 +1,132 @@
+<%- include('partials/header') %>
+
+<div class="wrap dash" data-guild="<%= guild.id %>">
+  <aside class="dash-side">
+    <div class="dash-guild">
+      <% if (guild.icon) { %>
+        <img src="<%= guild.icon %>" alt="" width="40" height="40">
+      <% } else { %>
+        <div class="server-icon server-icon-fallback" style="width:40px;height:40px" aria-hidden="true"><%= guild.name.slice(0, 2).toUpperCase() %></div>
+      <% } %>
+      <div style="min-width:0">
+        <strong><%= guild.name %></strong>
+        <span><%= guild.memberCount.toLocaleString() %> members</span>
+      </div>
+    </div>
+
+    <nav class="side-nav" id="panel-nav" aria-label="Settings sections">
+      <button type="button" class="is-active" data-panel="overview">
+        <span class="side-icon" aria-hidden="true">📊</span> Overview
+      </button>
+      <% categories.forEach((category) => { %>
+        <button type="button" data-panel="<%= category.name.toLowerCase() %>">
+          <span class="side-icon" aria-hidden="true"><%= {
+            General: '⚙️', Appearance: '🎨', Welcome: '👋', Goodbye: '🚪', Boost: '💜',
+            Levels: '📈', Logging: '📜', Automod: '🛡️', Antinuke: '🔒', Antiraid: '🚨',
+            Starboard: '⭐', Tickets: '🎫', Economy: '💵', Music: '🎵', VoiceMaster: '🎙️',
+            Moderation: '🔨', Autorole: '➕', Fun: '🎲'
+          }[category.name] || '•' %></span>
+          <%= category.name %>
+        </button>
+      <% }) %>
+    </nav>
+  </aside>
+
+  <div class="dash-main">
+    <!-- Overview -->
+    <section class="panel is-active" data-panel-body="overview">
+      <div class="panel-head">
+        <div>
+          <h2>Overview</h2>
+          <p>A quick look at what is running in <%= guild.name %>.</p>
+        </div>
+        <a class="btn btn-ghost btn-sm" href="/guide">Command guide</a>
+      </div>
+
+      <div class="stat-grid" id="stat-grid">
+        <div class="stat-tile"><span class="n" data-stat="members">—</span><span class="l">Members</span></div>
+        <div class="stat-tile"><span class="n" data-stat="cases">—</span><span class="l">Mod cases</span></div>
+        <div class="stat-tile"><span class="n" data-stat="rankedMembers">—</span><span class="l">Ranked members</span></div>
+        <div class="stat-tile"><span class="n" data-stat="openTickets">—</span><span class="l">Open tickets</span></div>
+        <div class="stat-tile"><span class="n" data-stat="giveaways">—</span><span class="l">Live giveaways</span></div>
+        <div class="stat-tile"><span class="n" data-stat="autoresponders">—</span><span class="l">Autoresponders</span></div>
+      </div>
+
+      <div class="card">
+        <h3>Command prefix</h3>
+        <p class="muted small">What members type before a command. Mentioning the bot always works too.</p>
+        <div class="row-form">
+          <input type="text" id="prefix-input" value="<%= prefix %>" maxlength="5" aria-label="Command prefix">
+          <button type="button" class="btn btn-primary" id="save-prefix">Save prefix</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Top members by XP</h3>
+        <div class="mini-list" id="top-members"><p class="dim small">Loading…</p></div>
+      </div>
+
+      <div class="card">
+        <h3>Recent moderation</h3>
+        <div class="mini-list" id="recent-cases"><p class="dim small">Loading…</p></div>
+      </div>
+    </section>
+
+    <!-- Generated setting panels -->
+    <% categories.forEach((category) => { %>
+      <section class="panel" data-panel-body="<%= category.name.toLowerCase() %>">
+        <div class="panel-head">
+          <div>
+            <h2><%= category.name %></h2>
+            <p><%= category.blurb %></p>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm" data-reset-category="<%= category.name %>">Reset section</button>
+        </div>
+
+        <div class="card">
+          <% category.settings.forEach((setting) => { %>
+            <%- include('partials/field', { setting }) %>
+          <% }) %>
+        </div>
+
+        <% if (category.name === 'Levels') { %>
+          <div class="card">
+            <h3>Level rewards</h3>
+            <p class="muted small">Roles handed out automatically when a member reaches a level.</p>
+            <div class="row-list" id="level-rewards"><p class="dim small">Loading…</p></div>
+            <div class="row-form">
+              <input type="number" id="reward-level" min="1" max="1000" placeholder="Level" aria-label="Level">
+              <select id="reward-role" data-populate="role" aria-label="Role"><option value="">Choose a role…</option></select>
+              <button type="button" class="btn btn-primary" id="add-reward">Add reward</button>
+            </div>
+          </div>
+        <% } %>
+
+        <% if (category.name === 'General') { %>
+          <div class="card">
+            <h3>Autoresponders</h3>
+            <p class="muted small">The bot replies automatically when a message contains the trigger.</p>
+            <div class="row-list" id="autoresponders"><p class="dim small">Loading…</p></div>
+            <div class="row-form">
+              <input type="text" id="ar-trigger" placeholder="When someone says…" aria-label="Trigger">
+              <input type="text" id="ar-response" placeholder="Reply with…" aria-label="Response">
+              <button type="button" class="btn btn-primary" id="add-ar">Add</button>
+            </div>
+          </div>
+        <% } %>
+      </section>
+    <% }) %>
+  </div>
+</div>
+
+<div class="save-bar" id="save-bar" role="region" aria-label="Unsaved changes">
+  <p><strong id="change-count">0</strong> unsaved change(s)</p>
+  <div class="actions">
+    <button type="button" class="btn btn-ghost btn-sm" id="discard-changes">Discard</button>
+    <button type="button" class="btn btn-primary btn-sm" id="save-changes">Save changes</button>
+  </div>
+</div>
+
+<script src="/static/js/dashboard.js" defer></script>
+
+<%- include('partials/footer') %>

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <meta name="description" content="Vex — moderation, music, levels, economy, logging and automod for Discord, with a dashboard for every setting.">
+  <meta name="csrf-token" content="<%= csrf %>">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+</head>
+<body<%= typeof bodyClass !== 'undefined' ? ` class="${bodyClass}"` : '' %>>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="/">
+        <span class="brand-mark" aria-hidden="true">V</span>
+        <span class="brand-name">Vex</span>
+      </a>
+
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">
+        <span class="sr-only">Menu</span>
+        <span class="bar" aria-hidden="true"></span>
+        <span class="bar" aria-hidden="true"></span>
+        <span class="bar" aria-hidden="true"></span>
+      </button>
+
+      <nav class="site-nav" id="site-nav">
+        <a href="/guide"<%= path.startsWith('/guide') ? ' class="is-active"' : '' %>>Commands</a>
+        <a href="/dashboard"<%= path.startsWith('/dashboard') ? ' class="is-active"' : '' %>>Dashboard</a>
+        <% if (user) { %>
+          <span class="nav-user">
+            <img src="<%= user.avatar %>" alt="" width="28" height="28" loading="lazy">
+            <span class="nav-user-name"><%= user.globalName || user.username %></span>
+          </span>
+          <a class="btn btn-ghost btn-sm" href="/auth/logout">Sign out</a>
+        <% } else { %>
+          <a class="btn btn-primary btn-sm" href="/auth/login">Sign in</a>
+        <% } %>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
