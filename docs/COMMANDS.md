@@ -1,6 +1,6 @@
 # Command guide
 
-Every command, what it does, and how to use it. **286** commands in total.
+Every command, what it does, and how to use it. **287** commands in total.
 
 The default prefix is `.`; change it with `.prefix <new>`. Mentioning the bot always works too.
 
@@ -18,7 +18,7 @@ In the usage lines, `<angle brackets>` are required and `[square brackets]` are 
 - [Moderation](#moderation) — 57 commands
 - [Music](#music) — 23 commands
 - [Owner](#owner) — 9 commands
-- [Roles](#roles) — 22 commands
+- [Roles](#roles) — 23 commands
 - [Social](#social) — 6 commands
 - [Tickets](#tickets) — 5 commands
 - [Utility](#utility) — 34 commands
@@ -4141,6 +4141,27 @@ Delete a role.
 ```
 
 > You need: `ManageRoles` · Bot needs: `ManageRoles`
+
+### `.roledeleteall`
+
+Wipes the role list. Roles Discord will not let anyone delete are skipped automatically: `@everyone`, roles managed by a bot or integration, the booster role, and anything sitting above my own highest role — drag my role to the top first if you want those gone too. Server owner only, always confirmed, and **it cannot be undone** — there is no restore for this the way `restoreroles` undoes a `strip`.
+
+**Usage:** `.roledeleteall [all|empty]`
+
+**Aliases:** `.deleteallroles`, `.rolenuke`
+
+| Argument | Required | What it is |
+| --- | --- | --- |
+| `scope` | no | `all` deletes every role it can; `empty` spares any role someone still has |
+
+**Examples:**
+
+```
+.roledeleteall
+.roledeleteall empty
+```
+
+> Bot needs: `ManageRoles` · Server owner only
 
 ### `.rolehoist`
 

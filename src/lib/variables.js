@@ -89,6 +89,18 @@ function apply(text, scope) {
   });
 }
 
+/**
+ * Strip only ordinary spaces, tabs and newlines from the ends of a value.
+ *
+ * Padding a line with wide blanks is how people centre and indent text in a
+ * Discord embed — there is no alignment to set — so an em space or a braille
+ * blank at the start of a description is deliberate and has to survive. A
+ * plain `.trim()` eats those, silently flattening the layout someone wrote.
+ */
+function trimOuter(value) {
+  return value.replace(/^[ \t\r\n]+/, '').replace(/[ \t\r\n]+$/, '');
+}
+
 /** Split "{key: value}" into its two halves. */
 function parsePart(raw) {
   const trimmed = raw.trim().replace(/^\{/, '').replace(/\}$/, '');
@@ -96,13 +108,19 @@ function parsePart(raw) {
   if (separator === -1) return { key: trimmed.toLowerCase().trim(), value: '' };
   return {
     key: trimmed.slice(0, separator).toLowerCase().trim(),
-    value: trimmed.slice(separator + 1).trim(),
+    value: trimOuter(trimmed.slice(separator + 1)),
   };
 }
 
 /** "a && b && c" — used by author/footer/field which take several values. */
 function splitValues(value) {
-  return value.split('&&').map((piece) => piece.trim());
+  return value.split('&&').map((piece) => trimOuter(piece));
+}
+
+/** `<:name:id>`, `<a:name:id>`, or a bare unicode emoji. */
+function looksLikeEmoji(piece) {
+  if (/^<a?:[\w~]+:\d+>$/.test(piece)) return true;
+  return piece.length > 0 && piece.length <= 8 && !/[\w\s]/.test(piece) && /\p{Extended_Pictographic}/u.test(piece);
 }
 
 const BUTTON_STYLES = {
@@ -198,11 +216,43 @@ function render(template, context = {}) {
           touched = true;
           break;
         case 'button': {
-          const [label, target, style] = splitValues(value);
-          const resolvedStyle = BUTTON_STYLES[String(style || '').toLowerCase()] ?? ButtonStyle.Link;
-          const button = new ButtonBuilder().setLabel(truncate(label, 80));
-          if (resolvedStyle === ButtonStyle.Link) button.setStyle(ButtonStyle.Link).setURL(target);
-          else button.setStyle(resolvedStyle).setCustomId(truncate(target, 100));
+          // Other bots order these differently and tack on extra words, so
+          // rather than trusting position, work out what each part is: the
+          // URL, the style name and the emoji identify themselves, and what
+          // is left over is the label. That way a template written for
+          // another bot pastes in and still produces the right button.
+          const parts = splitValues(value).filter(Boolean);
+          const urlAt = parts.findIndex((piece) => /^https?:\/\//i.test(piece));
+          const emojiAt = parts.findIndex((piece, index) => index !== urlAt && looksLikeEmoji(piece));
+          const styleAt = parts.findIndex(
+            (piece, index) =>
+              index !== urlAt && index !== emojiAt && BUTTON_STYLES[piece.toLowerCase()] !== undefined,
+          );
+          const rest = parts.filter((_, index) => index !== urlAt && index !== emojiAt && index !== styleAt);
+
+          const url = urlAt === -1 ? '' : parts[urlAt];
+          const emoji = emojiAt === -1 ? '' : parts[emojiAt];
+          const named = styleAt === -1 ? undefined : BUTTON_STYLES[parts[styleAt].toLowerCase()];
+          // A URL can only be a link button, whatever style name came with it.
+          const resolvedStyle = url ? ButtonStyle.Link : named ?? ButtonStyle.Secondary;
+
+          const label = rest[0] ?? '';
+          if (!label && !emoji) break; // Discord rejects a button with neither.
+
+          const button = new ButtonBuilder().setStyle(resolvedStyle);
+          if (label) button.setLabel(truncate(label, 80));
+          if (emoji) {
+            // A bad emoji should cost the emoji, not the whole button.
+            try {
+              button.setEmoji(emoji);
+            } catch {
+              /* ignore */
+            }
+          }
+
+          if (resolvedStyle === ButtonStyle.Link) button.setURL(url);
+          else button.setCustomId(truncate(rest[1] || label || emoji, 100));
+
           buttons.push(button);
           break;
         }

@@ -329,6 +329,86 @@ module.exports = [
   },
 
   {
+    name: 'roledeleteall',
+    aliases: ['deleteallroles', 'rolenuke'],
+    category: 'Roles',
+    description: 'Delete every role in the server at once.',
+    details:
+      'Wipes the role list. Roles Discord will not let anyone delete are skipped automatically: '
+      + '`@everyone`, roles managed by a bot or integration, the booster role, and anything sitting '
+      + 'above my own highest role — drag my role to the top first if you want those gone too. '
+      + 'Server owner only, always confirmed, and **it cannot be undone** — there is no restore for '
+      + 'this the way `restoreroles` undoes a `strip`.',
+    usage: '[all|empty]',
+    examples: ['roledeleteall', 'roledeleteall empty'],
+    serverOwnerOnly: true,
+    botPermissions: ['ManageRoles'],
+    cooldown: 30,
+    args: [
+      {
+        name: 'scope',
+        type: 'choice',
+        choices: ['all', 'empty'],
+        required: false,
+        default: 'all',
+        description: '`all` deletes every role it can; `empty` spares any role someone still has',
+      },
+    ],
+    async run(ctx) {
+      const { scope } = ctx.args;
+
+      const everything = [...ctx.guild.roles.cache.values()];
+      const deletable = mod.manageableRoles(ctx.guild, everything);
+      const targets = scope === 'empty' ? deletable.filter((role) => role.members.size === 0) : deletable;
+      const skipped = everything.length - targets.length;
+
+      if (!targets.length) {
+        return ctx.error(
+          scope === 'empty'
+            ? 'Every role I can delete still has at least one member.'
+            : 'There are no roles here that I am allowed to delete.',
+        );
+      }
+
+      const held = targets.filter((role) => role.members.size > 0);
+      const preview = truncate(targets.map((role) => role.name).join(', '), 900);
+
+      const confirmed = await ctx.confirm({
+        title: `Delete ${targets.length} role${targets.length === 1 ? '' : 's'}`,
+        description:
+          `This deletes **${targets.length}** of the server's **${everything.length}** roles and **cannot be undone**.`
+          + (held.length
+            ? `\n\n${emojis.warn} **${held.length}** of them are still assigned to members — everyone loses them.`
+            : '')
+          + `\n\n${preview}`,
+        fields: [
+          { name: 'Skipped', value: `${skipped} (protected or above me)`, inline: true },
+          { name: 'Scope', value: scope === 'empty' ? 'Unassigned roles only' : 'Every deletable role', inline: true },
+        ],
+        timeout: 60_000,
+      });
+      if (!confirmed) return undefined;
+
+      await ctx.defer();
+
+      // Deleting in small batches keeps us inside Discord's rate limits on
+      // servers with hundreds of roles, rather than getting the whole run
+      // cut off part-way through.
+      const outcomes = await pooled(targets, 3, (role) =>
+        role.delete(`Mass role delete by ${ctx.user.tag}`).then(() => true));
+
+      const deleted = outcomes.filter((outcome) => outcome === true).length;
+      const failed = targets.length - deleted;
+
+      return ctx.success(
+        `Deleted **${deleted}** role${deleted === 1 ? '' : 's'}.`
+          + (failed ? ` **${failed}** could not be deleted.` : '')
+          + (skipped ? ` **${skipped}** were protected and left alone.` : ''),
+      );
+    },
+  },
+
+  {
     name: 'rolecolor',
     aliases: ['rolecolour'],
     category: 'Roles',

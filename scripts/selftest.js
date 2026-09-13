@@ -201,6 +201,36 @@ test('an empty template returns empty content', () => {
   assert.equal(variables.render('', fakeContext).content, '');
 });
 
+test('deliberate padding survives, ordinary whitespace does not', () => {
+  const padded = variables.render('{embed}$v{description: \u2003\u2003Welcome}', {}).embeds[0].data;
+  assert.equal(padded.description, '\u2003\u2003Welcome', 'wide blanks are how you indent an embed');
+
+  const sloppy = variables.render('{embed}$v{description:    Welcome   }', {}).embeds[0].data;
+  assert.equal(sloppy.description, 'Welcome', 'plain spaces around a value are still tidied away');
+});
+
+test('a button is understood whichever order its parts come in', () => {
+  const url = 'https://discord.com/channels/1/2';
+  const labelFirst = variables.render(`{embed}$v{description: x}$v{button: Chat && ${url} && link}`, {});
+  const urlFirst = variables.render(`{embed}$v{description: x}$v{button: ${url} && Chat && 👋 && enable}`, {});
+
+  for (const payload of [labelFirst, urlFirst]) {
+    const button = payload.components[0].components[0].data;
+    assert.equal(button.label, 'Chat');
+    assert.equal(button.url, url, 'the URL is found by shape, not by position');
+    assert.equal(button.style, 5, 'anything with a URL has to be a link button');
+  }
+  assert.equal(urlFirst.components[0].components[0].data.emoji.name, '👋', 'the emoji part is picked up');
+});
+
+test('a button with an unusable part keeps the rest of the button', () => {
+  const payload = variables.render('{embed}$v{description: x}$v{button: Click && my_id && success}', {});
+  const button = payload.components[0].components[0].data;
+  assert.equal(button.style, 3, 'a named style is honoured when there is no URL');
+  assert.equal(button.custom_id, 'my_id');
+  assert.equal(button.url, undefined);
+});
+
 test('stringify round-trips into a parseable script', () => {
   const script = variables.stringify({ title: 'T', description: 'D', color: '#8b5cf6' });
   const embed = variables.render(script, fakeContext).embeds[0].toJSON();
