@@ -157,7 +157,10 @@ function render(template, context = {}) {
 
     try {
       switch (key) {
+        // `message` is what some other bots call this; accept both so their
+        // templates paste in unchanged.
         case 'content':
+        case 'message':
           content = truncate(value, 2000);
           break;
         case 'color':

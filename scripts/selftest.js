@@ -209,6 +209,13 @@ test('deliberate padding survives, ordinary whitespace does not', () => {
   assert.equal(sloppy.description, 'Welcome', 'plain spaces around a value are still tidied away');
 });
 
+test('{message:} is accepted as another name for {content:}', () => {
+  const a = variables.render('{embed}$v{message: above the embed}$v{description: x}', {});
+  const b = variables.render('{embed}$v{content: above the embed}$v{description: x}', {});
+  assert.equal(a.content, 'above the embed');
+  assert.deepEqual(a.content, b.content, 'both spellings do the same thing');
+});
+
 test('a button is understood whichever order its parts come in', () => {
   const url = 'https://discord.com/channels/1/2';
   const labelFirst = variables.render(`{embed}$v{description: x}$v{button: Chat && ${url} && link}`, {});
