@@ -3,14 +3,29 @@
 const { ChannelType, ApplicationCommandOptionType } = require('discord.js');
 const { parseDuration, isSnowflake } = require('./util');
 
-/** Split on whitespace but keep "quoted phrases" together. */
+/**
+ * Split on whitespace but keep "quoted phrases" together.
+ *
+ * The original text and each token's position in it ride along on the
+ * returned array. A `rest` argument needs them: rebuilding it by joining
+ * tokens with spaces turns every newline into a space, which silently
+ * flattens any multi-line value someone typed — a welcome template, a tag,
+ * an embed script — into one unusable line.
+ */
 function tokenize(input) {
   const tokens = [];
+  const offsets = [];
   const pattern = /"([^"]*)"|'([^']*)'|(\S+)/g;
   let match;
   while ((match = pattern.exec(input)) !== null) {
     tokens.push(match[1] ?? match[2] ?? match[3]);
+    // Quoted tokens start after the opening quote, so the quotes themselves
+    // stay stripped when the rest happens to begin with one.
+    offsets.push(match[3] === undefined ? match.index + 1 : match.index);
   }
+  // Non-enumerable so the token list still compares as a plain array.
+  Object.defineProperty(tokens, 'source', { value: input });
+  Object.defineProperty(tokens, 'offsets', { value: offsets });
   return tokens;
 }
 
@@ -173,7 +188,14 @@ async function parsePrefixArgs(command, tokens, ctxLike) {
 
   for (const spec of specs) {
     if (spec.type === 'rest') {
-      const rest = tokens.slice(index).join(' ').trim();
+      // Take the remainder straight out of the original message so line
+      // breaks and deliberate spacing survive exactly as typed.
+      const start = tokens.offsets?.[index];
+      const raw =
+        start === undefined || tokens.source === undefined
+          ? tokens.slice(index).join(' ')
+          : tokens.source.slice(start);
+      const rest = raw.replace(/^[ \t\r\n]+/, '').replace(/[ \t\r\n]+$/, '');
       if (rest) {
         result[spec.name] = rest;
         index = tokens.length;

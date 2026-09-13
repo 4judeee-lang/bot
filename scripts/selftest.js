@@ -486,6 +486,21 @@ group('argument parsing');
 
 const stubContext = { client: { users: { cache: new Map(), fetch: async () => null } }, guild: null };
 
+testAsync('a rest argument keeps the line breaks it was typed with', async () => {
+  const command = { name: 'setwelcome', args: [{ name: 'template', type: 'rest', required: true }] };
+  const typed = '{embed}$v{description: line one\nline two\n-# line three}';
+  const parsed = await parsePrefixArgs(command, tokenize(typed), stubContext);
+
+  assert.equal(parsed.ok, true, 'the argument resolves');
+  assert.equal(parsed.args.template, typed, 'newlines survive exactly as typed');
+});
+
+testAsync('a rest argument still drops the whitespace around it', async () => {
+  const command = { name: 'tag', args: [{ name: 'body', type: 'rest', required: true }] };
+  const parsed = await parsePrefixArgs(command, tokenize('   hello   there   '), stubContext);
+  assert.equal(parsed.args.body, 'hello   there', 'inner spacing is left alone, the edges are tidied');
+});
+
 test('tokenize keeps quoted phrases together', () => {
   assert.deepEqual(tokenize('one "two three" four'), ['one', 'two three', 'four']);
   assert.deepEqual(tokenize("a 'b c'"), ['a', 'b c']);
