@@ -53,6 +53,32 @@ A window pops up — click **Install** and wait. If it says *already installed*,
 
 ## Step 3 — Download the code
 
+Two ways. **The ZIP is simpler**; git is better if you want `git pull` to fetch updates later.
+
+### Option A — download the ZIP (simplest)
+
+1. Open <https://github.com/4judeee-lang/bot/tree/claude/focused-newton-wshk0g> and sign in
+2. Click the green **Code** button → **Download ZIP**
+   (or go straight there:
+   <https://github.com/4judeee-lang/bot/archive/refs/heads/claude/focused-newton-wshk0g.zip>)
+3. Double-click the file in **Downloads** — macOS unzips it into a folder beside it
+4. Rename that folder to `vex`, drag it into **Documents**, then in Terminal:
+
+```bash
+cd ~/Documents/vex
+ls
+```
+
+`ls` should list `package.json`, `src`, `scripts` and `docs`. If it says *No such file or
+directory*, the folder is somewhere else — drag the folder onto the Terminal window after typing
+`cd ` (with the space) and it fills in the path for you.
+
+> The ZIP has no git history, so `git pull` will not work later. To update, download a fresh ZIP and
+> copy your `.env` file and the `data/` folder across — those hold your settings and all your
+> server's data.
+
+### Option B — clone with git (keeps updates easy)
+
 ```bash
 cd ~/Documents
 git clone https://github.com/4judeee-lang/bot.git vex
@@ -60,7 +86,7 @@ cd vex
 git checkout claude/focused-newton-wshk0g
 ```
 
-The repo is private, so git will ask for your GitHub login. If it asks for a **password**, GitHub no
+The repo is private, so git asks for your GitHub login. If it asks for a **password**, GitHub no
 longer accepts your account password — you need a token:
 
 1. <https://github.com/settings/tokens> → **Generate new token (classic)**
@@ -68,6 +94,8 @@ longer accepts your account password — you need a token:
 3. Paste that token when git asks for the password
 
 ## Step 4 — Install the dependencies
+
+Make sure you are in the project folder first (`cd ~/Documents/vex`), then:
 
 ```bash
 npm install
@@ -215,7 +243,7 @@ welcome messages, automod, logging — is a form field there.
 | --- | --- |
 | Start the bot | `cd ~/Documents/vex` then `npm start` |
 | Stop the bot | Click the Terminal window, press `Control + C` |
-| Update to the newest code | `cd ~/Documents/vex && git pull && npm install` |
+| Update to the newest code | `cd ~/Documents/vex && git pull && npm install` (git install only — with the ZIP, download a fresh one and copy your `.env` and `data/` across) |
 | See what broke | The Terminal window prints every error as it happens |
 
 ### Stop the Mac sleeping and killing the bot
