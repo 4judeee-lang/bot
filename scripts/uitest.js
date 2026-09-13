@@ -185,7 +185,11 @@ function check(name, ok, detail = '') {
 
 async function main() {
   const server = buildServer().listen(PORT);
-  const browser = await chromium.launch();
+  // CI images often ship a Chromium that Playwright did not download itself;
+  // point at it with CHROMIUM_PATH rather than fetching a second copy.
+  const browser = await chromium.launch(
+    process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {},
+  );
   const errors = [];
 
   const newPage = async (width, height, scheme = 'dark') => {

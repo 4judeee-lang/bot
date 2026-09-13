@@ -307,6 +307,47 @@ test('prefixes persist and default correctly', () => {
   assert.equal(store.getPrefix('brand-new-guild'), '!');
 });
 
+test('the SQLite driver runs in WAL mode with foreign keys on', () => {
+  assert.equal(store.db.pragma('journal_mode')[0].journal_mode, 'wal');
+  assert.equal(store.db.pragma('foreign_keys')[0].foreign_keys, 1);
+});
+
+test('the values node:sqlite will not bind are translated', () => {
+  store.db.prepare('CREATE TABLE IF NOT EXISTS bind_probe (a, b, c)').run();
+  store.db.prepare('INSERT INTO bind_probe VALUES (?, ?, ?)').run(true, false, undefined);
+  const row = store.db.prepare('SELECT * FROM bind_probe').get();
+  assert.deepEqual(row, { a: 1, b: 0, c: null }, 'booleans become 0/1 and undefined becomes NULL');
+});
+
+test('rows are ordinary objects, not null-prototype ones', () => {
+  const row = store.db.prepare('SELECT 1 AS n').get();
+  assert.equal(Object.getPrototypeOf(row), Object.prototype);
+  assert.equal(row.hasOwnProperty('n'), true);
+  assert.equal(store.db.prepare('SELECT 1 AS n WHERE 0').get(), undefined, 'no match returns undefined');
+});
+
+test('a failed transaction leaves nothing behind', () => {
+  const before = store.db.prepare('SELECT COUNT(*) AS n FROM tags').get().n;
+  const failing = store.db.transaction(() => {
+    store.db.prepare('INSERT INTO tags (guild_id, name, content) VALUES (?, ?, ?)').run('tx', 'rolled', 'back');
+    throw new Error('deliberate');
+  });
+  assert.throws(failing, /deliberate/);
+  assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM tags').get().n, before, 'the insert was undone');
+});
+
+test('nested transactions commit together', () => {
+  const inner = store.db.transaction((name) =>
+    store.db.prepare('INSERT INTO tags (guild_id, name, content) VALUES (?, ?, ?)').run('tx', name, 'kept'));
+  const outer = store.db.transaction(() => {
+    inner('nested-a');
+    inner('nested-b');
+    return 'done';
+  });
+  assert.equal(outer(), 'done', 'the return value passes through');
+  assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM tags WHERE guild_id = 'tx'").get().n, 2);
+});
+
 /* ── economy ─────────────────────────────────────────────────────────── */
 
 const economy = require('../src/modules/economy');

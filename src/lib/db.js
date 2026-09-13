@@ -9,11 +9,14 @@
  *   2. A generic `settings` key/value table — every toggle the dashboard can
  *      flip. Keys and their defaults are declared once in `settingsSchema.js`
  *      so the bot and the website can never drift apart.
+ *
+ * The driver is Node's built-in SQLite, wrapped in `./sqlite` — see that file
+ * for why there is no native dependency to compile.
  */
 
 const fs = require('node:fs');
 const path = require('node:path');
-const Database = require('better-sqlite3');
+const Database = require('./sqlite');
 const config = require('../config');
 
 fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });

@@ -38,7 +38,8 @@ Everything is per-server and everything can be switched off.
 
 ### 1. Requirements
 
-- **Node.js 20 or newer**
+- **Node.js 22.5 or newer** — that is all. Storage uses the SQLite built into Node, so `npm install`
+  compiles nothing and needs no toolchain
 - A Discord application — <https://discord.com/developers/applications>
 
 ### 2. Install
@@ -170,7 +171,7 @@ src/
 └── web/                  dashboard (express + ejs, no build step)
 scripts/
 ├── validate.js           checks every command before the bot runs
-├── selftest.js           63 checks over the logic that needs no Discord
+├── selftest.js           68 checks over the logic that needs no Discord
 ├── uitest.js             34 browser checks over the dashboard
 ├── deploy-commands.js    slash command registration
 └── generate-docs.js      writes docs/COMMANDS.md
@@ -212,14 +213,15 @@ a malformed command before Discord ever sees it.
 ## Testing
 
 ```bash
-npm test        # validate every command, then 63 logic + end-to-end checks
+npm test        # validate every command, then 68 logic + end-to-end checks
 npm run check   # command validation only
 npm run test:ui # 34 browser checks against the dashboard (needs Playwright)
 ```
 
 `npm test` covers duration parsing, the XP curve, template rendering, settings validation, economy
 maths, command resolution, argument parsing (including the awkward optional-duration case), the
-slash payload limits, and running real commands through the dispatcher against a mocked Discord.
+slash payload limits, the SQLite layer (WAL mode, value binding, transaction rollback), and running
+real commands through the dispatcher against a mocked Discord.
 
 `npm run test:ui` drives the real pages in Chromium: it asserts that nothing scrolls sideways at
 390px, 768px and 1280px, that no page throws a JavaScript error, and that the settings UI actually
@@ -235,7 +237,8 @@ a toggle switch whose own track was swallowing clicks.
 
 ## Notes
 
-- **Storage** is SQLite (`data/vex.db`) — nothing external to run. Back up that one file.
+- **Storage** is SQLite (`data/vex.db`) via Node's built-in `node:sqlite` — nothing external to run
+  and no native module to build. Back up that one file.
 - **Music** uses `play-dl`. YouTube occasionally tightens its extraction; if playback stops working,
   update that package first. The bot degrades gracefully and says so rather than failing silently.
 - **Privacy** — deleted-message snipes live in memory only, expire after an hour, and can be turned

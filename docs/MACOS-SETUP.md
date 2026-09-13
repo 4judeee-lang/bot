@@ -10,14 +10,18 @@ Everything in a grey box is a command to paste into **Terminal**
 
 ## Step 1 — Install Node.js
 
-Vex needs **Node.js 20 or newer**. Check whether you already have it:
+Vex needs **Node.js 22.5 or newer**. Newer is fine — Vex stores its data in the SQLite database
+that is built into Node itself, so there is nothing to compile and nothing that breaks when Node
+puts out a new version.
+
+Check whether you already have it:
 
 ```bash
 node -v
 ```
 
-If that prints something like `v22.11.0`, skip to step 2. If it says *command not found*, or the
-number is lower than 20, install it:
+If that prints `v22.5.0` or higher — `v22.22.0`, `v24.9.1`, `v26.8.1`, anything — skip to step 2.
+If it says *command not found*, or the number is lower, install it:
 
 **Easiest way — the official installer**
 
@@ -43,7 +47,8 @@ your PATH. Then `brew install node`.
 
 ## Step 2 — Install the Xcode command line tools
 
-These give you `git`, and the compiler that one of the dependencies may need:
+Only needed if you want to download the code with `git` in step 3 — the ZIP route skips this
+entirely, and nothing Vex installs needs a compiler.
 
 ```bash
 xcode-select --install
@@ -101,13 +106,20 @@ Make sure you are in the project folder first (`cd ~/Documents/vex`), then:
 npm install
 ```
 
-This takes a minute or two and prints a lot. As long as the last lines do not say `ERR!`, it worked.
+It takes a few seconds and prints a summary like `added 119 packages`. As long as the last lines do
+not say `ERR!`, it worked.
 
-Optional but recommended — `ffmpeg` makes music playback work with more sources:
+Optional but recommended — `ffmpeg` makes music playback work with more sources. It needs
+[Homebrew](https://brew.sh) (step 1 shows how to install it):
 
 ```bash
 brew install ffmpeg
 ```
+
+> **Paste one line at a time, and never paste a `#` comment along with a command.** If you copy
+> `brew install ffmpeg   # optional` in one go, Homebrew reads `#` as a second package name and
+> prints `Warning: No available formula with the name "#"` followed by its entire catalogue. The
+> command still worked — only the `#` part failed.
 
 ## Step 5 — Create your bot on Discord
 
@@ -144,10 +156,11 @@ Make your own copy of the example settings:
 cp .env.example .env
 ```
 
-Generate a random secret for the dashboard login and copy it:
+Generate a random secret for the dashboard login. This prints a long string of letters and
+numbers — select it and copy it:
 
 ```bash
-openssl rand -hex 32
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 Now open the file in TextEdit:
@@ -314,8 +327,31 @@ port: `http://localhost:3000/auth/callback`.
 Install ffmpeg (`brew install ffmpeg`) and restart. If it still fails, YouTube has likely changed
 its extraction again — update the library with `npm i play-dl@latest`.
 
-**`better-sqlite3` fails to build during `npm install`**
-Run `xcode-select --install` (step 2), then `npm install` again.
+**`npm install` fails on `better-sqlite3` with `node-gyp` / `gyp ERR!` / `no member named 'GetPrototype' in 'v8::Object'`**
+You have an old copy of the code. Vex no longer uses `better-sqlite3` — it uses the SQLite that is
+built into Node, so there is nothing to compile. Update and reinstall from scratch:
+
+```bash
+cd ~/Documents/vex
+git pull
+rm -rf node_modules package-lock.json
+npm install
+```
+
+With the ZIP download instead of git, download a fresh ZIP (step 3) and copy your `.env` file and
+`data/` folder into the new folder.
+
+**`rand: Extra option: "32"`**
+That was an old version of step 7, which used `openssl`. Use this instead — it needs nothing but
+Node, which you already have:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+**`Warning: No available formula with the name "#"`** followed by a huge list of packages
+You pasted a command together with the `#` comment written beside it. Homebrew treated `#` as
+another package to install. Run just the command itself, with nothing after it.
 
 ---
 
@@ -324,7 +360,7 @@ Run `xcode-select --install` (step 2), then `npm install` again.
 These run offline and need no token:
 
 ```bash
-npm test        # validates every command, then 63 logic checks
+npm test        # validates every command, then 68 logic checks
 npm run web     # dashboard on its own at http://localhost:3000
 npm run docs    # regenerates docs/COMMANDS.md
 ```
