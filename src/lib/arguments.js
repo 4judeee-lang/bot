@@ -23,10 +23,28 @@ function tokenize(input) {
     // stay stripped when the rest happens to begin with one.
     offsets.push(match[3] === undefined ? match.index + 1 : match.index);
   }
-  // Non-enumerable so the token list still compares as a plain array.
-  Object.defineProperty(tokens, 'source', { value: input });
+  return withSource(tokens, input, offsets);
+}
+
+/**
+ * Attach the original text and token offsets to a token list.
+ *
+ * Non-enumerable, so the list still compares as a plain array. `Array.slice`
+ * does not copy these, so anything that drops leading tokens — resolving a
+ * multi-word command name, for one — has to put them back or a `rest`
+ * argument silently loses every line break again.
+ */
+function withSource(tokens, source, offsets) {
+  Object.defineProperty(tokens, 'source', { value: source });
   Object.defineProperty(tokens, 'offsets', { value: offsets });
   return tokens;
+}
+
+/** Drop the first `count` tokens, keeping the source information intact. */
+function sliceTokens(tokens, count) {
+  const rest = tokens.slice(count);
+  if (tokens.source === undefined) return rest;
+  return withSource(rest, tokens.source, tokens.offsets.slice(count));
 }
 
 const MENTION = {
@@ -313,6 +331,7 @@ function slashChannelTypes(type) {
 
 module.exports = {
   tokenize,
+  sliceTokens,
   parsePrefixArgs,
   parseSlashArgs,
   resolveToken,

@@ -1,5 +1,7 @@
 'use strict';
 
+const { sliceTokens } = require('./arguments');
+
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -131,7 +133,7 @@ class Registry {
     for (let count = Math.min(this.maxWords, tokens.length); count >= 1; count--) {
       const candidate = tokens.slice(0, count).join(' ').toLowerCase();
       const command = this.get(candidate);
-      if (command) return { command, rest: tokens.slice(count) };
+      if (command) return { command, rest: sliceTokens(tokens, count) };
     }
     return { command: null, rest: tokens };
   }

@@ -535,6 +535,27 @@ group('argument parsing');
 
 const stubContext = { client: { users: { cache: new Map(), fetch: async () => null } }, guild: null };
 
+testAsync('line breaks survive the whole path, not just the parser', async () => {
+  // The earlier check called parsePrefixArgs with the array tokenize returned,
+  // which is not what happens: the registry slices the command name off first,
+  // and a plain slice drops the source the parser needs. That gap shipped a
+  // "fix" that changed nothing in practice, so this exercises the real chain.
+  const { Registry } = require('../src/lib/registry');
+  const command = { name: 'welcome message', args: [{ name: 'message', type: 'rest', required: true }] };
+
+  const registry = new Registry();
+  registry.commands = new Map([['welcome message', command]]);
+  registry.aliases = new Map();
+  registry.maxWords = 2;
+
+  const template = '{embed}$v{description: one\ntwo\n-# three}';
+  const { command: found, rest } = registry.resolve(tokenize(`welcome message ${template}`));
+  assert.equal(found, command, 'the two-word command resolves');
+
+  const parsed = await parsePrefixArgs(found, rest, stubContext);
+  assert.equal(parsed.args.message, template, 'three lines arrive as three lines');
+});
+
 testAsync('a rest argument keeps the line breaks it was typed with', async () => {
   const command = { name: 'setwelcome', args: [{ name: 'template', type: 'rest', required: true }] };
   const typed = '{embed}$v{description: line one\nline two\n-# line three}';

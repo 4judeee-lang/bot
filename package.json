@@ -1,7 +1,7 @@
 {
   "name": "vex-bot",
   "version": "1.0.0",
-  "description": "Vex \u2014 an all-in-one Discord utility bot (moderation, music, levels, economy, automod, tickets, giveaways and more) with a full web dashboard.",
+  "description": "Vex — an all-in-one Discord utility bot (moderation, music, levels, economy, automod, tickets, giveaways and more) with a full web dashboard.",
   "main": "src/index.js",
   "type": "commonjs",
   "engines": {
@@ -15,6 +15,7 @@
     "invite": "node scripts/invite.js",
     "docs": "node scripts/generate-docs.js",
     "template": "node scripts/check-template.js",
+    "doctor": "node scripts/doctor.js",
     "check": "node scripts/validate.js",
     "test": "node scripts/validate.js && node scripts/selftest.js",
     "test:ui": "node scripts/uitest.js"
