@@ -71,6 +71,7 @@ function buildScope({ user, member, guild, channel, extra = {} } = {}) {
   if (channel) {
     scope['channel.name'] = channel.name ?? '';
     scope['channel.mention'] = `<#${channel.id}>`;
+    scope['channel.id'] = channel.id;
   }
 
   const now = new Date();
@@ -80,11 +81,50 @@ function buildScope({ user, member, guild, channel, extra = {} } = {}) {
   return scope;
 }
 
+/**
+ * Other bots spell these differently — snake_case, `server` for `guild`, a
+ * bare `{user}` for the mention. Map their names onto ours so a template
+ * copied from elsewhere resolves instead of printing `{member.count}` as
+ * text.
+ */
+const VARIABLE_ALIASES = {
+  user: 'user.mention',
+  member: 'user.mention',
+  'user.username': 'user.name',
+  'user.displayname': 'user.display',
+  'user.display_name': 'user.display',
+  'user.nickname': 'user.display',
+  'user.nick': 'user.display',
+  'user.avatar_url': 'user.avatar',
+  'user.icon': 'user.avatar',
+  'user.created_at': 'user.created',
+  'user.joined_at': 'user.joined',
+  'member.count': 'guild.count',
+  'member.id': 'user.id',
+  'member.mention': 'user.mention',
+  'member.name': 'user.name',
+  'member.avatar': 'user.avatar',
+  'guild.member_count': 'guild.count',
+  'guild.members': 'guild.count',
+  'guild.icon_url': 'guild.icon',
+  'guild.boost_count': 'guild.boosts',
+  'guild.boosts_count': 'guild.boosts',
+  'guild.boost_tier': 'guild.tier',
+  'server.name': 'guild.name',
+  'server.id': 'guild.id',
+  'server.icon': 'guild.icon',
+  'server.count': 'guild.count',
+  'server.members': 'guild.count',
+  'channel.id': 'channel.id',
+};
+
 /** Replace {variables} in a string. Unknown variables are left untouched. */
 function apply(text, scope) {
   if (typeof text !== 'string') return text;
-  return text.replace(/\{([a-z0-9_.]+)\}/gi, (match, key) => {
-    const value = scope[key.toLowerCase()];
+  return text.replace(/\{([a-z0-9_.]+)\}/gi, (match, name) => {
+    const key = name.toLowerCase();
+    let value = scope[key];
+    if (value === undefined) value = scope[VARIABLE_ALIASES[key]];
     return value === undefined || value === null ? match : String(value);
   });
 }
@@ -103,7 +143,14 @@ function trimOuter(value) {
 
 /** Split "{key: value}" into its two halves. */
 function parsePart(raw) {
-  const trimmed = raw.trim().replace(/^\{/, '').replace(/\}$/, '');
+  let trimmed = raw.trim().replace(/^\{/, '');
+  // Drop the part's own closing brace, but only when there is one to drop.
+  // `{thumbnail: {user.avatar}` — a real mistake people make, and one other
+  // bots forgive — is already balanced once the opening brace is gone, and
+  // stripping again would eat the variable's brace and break the value.
+  const opens = (trimmed.match(/\{/g) ?? []).length;
+  const closes = (trimmed.match(/\}/g) ?? []).length;
+  if (closes > opens) trimmed = trimmed.replace(/\}$/, '');
   const separator = trimmed.indexOf(':');
   if (separator === -1) return { key: trimmed.toLowerCase().trim(), value: '' };
   return {
@@ -138,7 +185,12 @@ const BUTTON_STYLES = {
  */
 function render(template, context = {}) {
   const scope = buildScope(context);
-  const text = apply(String(template ?? ''), scope);
+  // A literal "\n" is treated as a line break. Some ways of getting a
+  // template into the bot cannot carry a real one, and a template that has
+  // been flattened onto a single line is badly broken in ways that are not
+  // obvious — `-#` stops applying, blank lines vanish — so this gives a
+  // spelling of "new line here" that nothing in between can eat.
+  const text = apply(String(template ?? '').replace(/\\n/g, '\n'), scope);
 
   if (!text.trim()) return { content: '' };
   if (!text.includes('{embed}')) return { content: truncate(text, 2000) };

@@ -209,6 +209,27 @@ test('deliberate padding survives, ordinary whitespace does not', () => {
   assert.equal(sloppy.description, 'Welcome', 'plain spaces around a value are still tidied away');
 });
 
+test('variable names from other bots resolve', () => {
+  const out = variables.render(
+    '{embed}$v{description: {user} joined {server.name}, member {member.count}}',
+    fakeContext,
+  );
+  const description = out.embeds[0].data.description;
+  assert.ok(!description.includes('{'), `every variable resolved: ${description}`);
+});
+
+test('a part missing its closing brace still works', () => {
+  const out = variables.render('{embed}$v{thumbnail: {user.avatar}$v{description: still here}', fakeContext);
+  assert.equal(out.embeds[0].data.description, 'still here');
+  assert.ok(out.embeds[0].data.thumbnail.url, 'the thumbnail survived the missing brace');
+});
+
+test('a literal \\n is treated as a line break', () => {
+  const typed = '{embed}$v{description: one\\ntwo\\n-# three}';
+  const out = variables.render(typed, fakeContext);
+  assert.equal(out.embeds[0].data.description, 'one\ntwo\n-# three', 'three real lines');
+});
+
 test('{message:} is accepted as another name for {content:}', () => {
   const a = variables.render('{embed}$v{message: above the embed}$v{description: x}', {});
   const b = variables.render('{embed}$v{content: above the embed}$v{description: x}', {});
