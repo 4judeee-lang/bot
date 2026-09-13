@@ -1,12 +1,9 @@
 'use strict';
 
-const { PermissionsBitField } = require('discord.js');
 const store = require('../../lib/db');
 const mod = require('../../lib/moderation');
 const { formatDuration, now, pooled, truncate } = require('../../lib/util');
 const emojis = require('../../lib/emojis');
-
-const P = PermissionsBitField.Flags;
 
 /** Force-nicknames are kept as a map in the settings table. */
 function forcedNicks(guildId) {

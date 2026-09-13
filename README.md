@@ -3,7 +3,7 @@
 An all-in-one Discord bot — moderation, music, levels, economy, logging, automod, anti-nuke,
 tickets, giveaways and more — with a web dashboard where **every** setting is a form field.
 
-**264 commands · 112 settings · one process.**
+**281 commands · 112 settings · one process.**
 
 ---
 
@@ -27,6 +27,8 @@ tickets, giveaways and more — with a web dashboard where **every** setting is 
 | **Utility** | Snipe, edit-snipe, reaction-snipe, AFK, reminders, to-do lists, tags, highlights, autoresponders, sticky messages, polls, an embed builder, colour previews and a calculator. |
 | **Fun** | 8-ball, dice, rock-paper-scissors, ship, rate, marry, reputation, guessing games and the rest. |
 | **Information** | userinfo, serverinfo, roleinfo, channelinfo, avatar, banner, emoji info and stealing, invite tracking. |
+| **Counters** | Voice channels whose name shows a live member/boost/role count, refreshed on a timer. |
+| **Social** | Last.fm now-playing and top artists/tracks, weather, dictionary and Urban Dictionary lookups. |
 
 Everything is per-server and everything can be switched off.
 
@@ -163,6 +165,7 @@ src/
 scripts/
 ├── validate.js           checks every command before the bot runs
 ├── selftest.js           63 checks over the logic that needs no Discord
+├── uitest.js             34 browser checks over the dashboard
 ├── deploy-commands.js    slash command registration
 └── generate-docs.js      writes docs/COMMANDS.md
 ```
@@ -204,12 +207,23 @@ a malformed command before Discord ever sees it.
 
 ```bash
 npm test        # validate every command, then 63 logic + end-to-end checks
-npm run check   # validation only
+npm run check   # command validation only
+npm run test:ui # 34 browser checks against the dashboard (needs Playwright)
 ```
 
-The self-test covers duration parsing, the XP curve, template rendering, settings validation,
-economy maths, command resolution, argument parsing (including the awkward optional-duration case),
-the slash payload limits, and running real commands through the dispatcher against a mocked Discord.
+`npm test` covers duration parsing, the XP curve, template rendering, settings validation, economy
+maths, command resolution, argument parsing (including the awkward optional-duration case), the
+slash payload limits, and running real commands through the dispatcher against a mocked Discord.
+
+`npm run test:ui` drives the real pages in Chromium: it asserts that nothing scrolls sideways at
+390px, 768px and 1280px, that no page throws a JavaScript error, and that the settings UI actually
+populates its pickers, stages edits, saves them in one batch and discards them again. It needs
+Playwright, which is not a dependency — install it with `npm i -D playwright && npx playwright
+install chromium`. Without it the script exits cleanly rather than failing.
+
+These browser checks earned their keep: they caught a grid `min-width` bug that made the dashboard
+scroll sideways on a phone, a `padding` shorthand that silently removed the page's side gutters, and
+a toggle switch whose own track was swallowing clicks.
 
 ---
 

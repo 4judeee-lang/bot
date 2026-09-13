@@ -1,6 +1,6 @@
 # Command guide
 
-Every command, what it does, and how to use it. **264** commands in total.
+Every command, what it does, and how to use it. **281** commands in total.
 
 The default prefix is `.`; change it with `.prefix <new>`. Mentioning the bot always works too.
 
@@ -8,9 +8,9 @@ In the usage lines, `<angle brackets>` are required and `[square brackets]` are 
 
 ## Contents
 
-- [Configuration](#configuration) — 44 commands
+- [Configuration](#configuration) — 48 commands
 - [Economy](#economy) — 19 commands
-- [Fun](#fun) — 23 commands
+- [Fun](#fun) — 27 commands
 - [General](#general) — 3 commands
 - [Giveaways](#giveaways) — 5 commands
 - [Information](#information) — 16 commands
@@ -19,8 +19,9 @@ In the usage lines, `<angle brackets>` are required and `[square brackets]` are 
 - [Music](#music) — 18 commands
 - [Owner](#owner) — 9 commands
 - [Roles](#roles) — 22 commands
+- [Social](#social) — 6 commands
 - [Tickets](#tickets) — 5 commands
-- [Utility](#utility) — 31 commands
+- [Utility](#utility) — 34 commands
 - [Voice](#voice) — 2 commands
 - [Settings reference](#settings-reference)
 - [Message variables](#message-variables)
@@ -401,6 +402,83 @@ Run on its own to see the categories. Pass a category to see its settings and th
 .config
 .config levels
 .config automod
+```
+
+> You need: `ManageGuild`
+
+### `.counter add`
+
+The channel name is rewritten to show the number. Use one of these placeholders in the template: `{members}` `{humans}` `{bots}` `{boosts}` `{channels}` `{roles}`.
+
+Discord only allows a channel to be renamed twice every ten minutes, so counters refresh on a ten-minute timer rather than instantly. Locking the channel so nobody can join it is a good idea.
+
+**Usage:** `.counter add <channel> <template>`
+
+**Aliases:** `.statschannel add`
+
+| Argument | Required | What it is |
+| --- | --- | --- |
+| `channel` | yes | the channel to rename |
+| `template` | yes | the name, containing a placeholder |
+
+**Examples:**
+
+```
+.counter add "Member Count" Members: {members}
+.counter add #stats {humans} humans
+```
+
+> You need: `ManageGuild` · Bot needs: `ManageChannels`
+
+### `.counter create`
+
+The quick way to get a counter: makes the channel, locks it so nobody can join, and sets it up.
+
+**Usage:** `.counter create [template]`
+
+| Argument | Required | What it is |
+| --- | --- | --- |
+| `template` | no | the name template |
+
+**Examples:**
+
+```
+.counter create
+.counter create Members: {members}
+```
+
+> You need: `ManageGuild` · Bot needs: `ManageChannels`
+
+### `.counter list`
+
+Show the counter channels in this server.
+
+**Usage:** `.counter list`
+
+**Aliases:** `.counters`
+
+**Examples:**
+
+```
+.counter list
+```
+
+> You need: `ManageGuild`
+
+### `.counter remove`
+
+Stop a channel being a counter (the name stays as it is).
+
+**Usage:** `.counter remove <channel>`
+
+| Argument | Required | What it is |
+| --- | --- | --- |
+| `channel` | yes | the counter channel |
+
+**Examples:**
+
+```
+.counter remove #stats
 ```
 
 > You need: `ManageGuild`
@@ -1106,6 +1184,18 @@ Ask the magic 8-ball a yes/no question.
 .8ball will it rain tomorrow?
 ```
 
+### `.advice`
+
+Some unsolicited advice.
+
+**Usage:** `.advice`
+
+**Examples:**
+
+```
+.advice
+```
+
 ### `.ascii`
 
 Show text in a big code block.
@@ -1120,6 +1210,18 @@ Show text in a big code block.
 
 ```
 .ascii hello
+```
+
+### `.cat`
+
+A random picture of a cat.
+
+**Usage:** `.cat`
+
+**Examples:**
+
+```
+.cat
 ```
 
 ### `.choose`
@@ -1180,6 +1282,18 @@ End a marriage.
 
 ```
 .divorce
+```
+
+### `.dog`
+
+A random picture of a dog.
+
+**Usage:** `.dog`
+
+**Examples:**
+
+```
+.dog
 ```
 
 ### `.emojify`
@@ -1243,6 +1357,18 @@ Measure someone’s IQ with total accuracy.
 
 ```
 .iq @user
+```
+
+### `.joke`
+
+A (mostly) clean joke.
+
+**Usage:** `.joke`
+
+**Examples:**
+
+```
+.joke
 ```
 
 ### `.marriage`
@@ -4021,6 +4147,111 @@ Give someone a role that is removed again after a set time.
 
 > You need: `ManageRoles` · Bot needs: `ManageRoles`
 
+## Social
+
+### `.lastfm`
+
+Save your username once with `lastfm set <name>` and then this works on its own.
+
+**Usage:** `.lastfm [username]`
+
+**Aliases:** `.fm`
+
+| Argument | Required | What it is |
+| --- | --- | --- |
+| `username` | no | a Last.fm username — omit to use your saved one |
+
+**Examples:**
+
+```
+.lastfm
+.lastfm rj
+```
+
+### `.lastfm clear`
+
+Forget your saved Last.fm username.
+
+**Usage:** `.lastfm clear`
+
+**Examples:**
+
+```
+.lastfm clear
+```
+
+### `.lastfm profile`
+
+Show a Last.fm profile and scrobble count.
+
+**Usage:** `.lastfm profile [username]`
+
+**Aliases:** `.fm profile`
+
+| Argument | Required | What it is |
+| --- | --- | --- |
+| `username` | no | a Last.fm username — omit to use your saved one |
+
+**Examples:**
+
+```
+.lastfm profile
+```
+
+### `.lastfm set`
+
+Save your Last.fm username so you can leave it off other commands.
+
+**Usage:** `.lastfm set <username>`
+
+**Aliases:** `.fm set`
+
+| Argument | Required | What it is |
+| --- | --- | --- |
+| `username` | yes | your Last.fm username |
+
+**Examples:**
+
+```
+.lastfm set rj
+```
+
+### `.lastfm topartists`
+
+Your most played artists on Last.fm.
+
+**Usage:** `.lastfm topartists [username]`
+
+**Aliases:** `.fm topartists`
+
+| Argument | Required | What it is |
+| --- | --- | --- |
+| `username` | no | a Last.fm username — omit to use your saved one |
+
+**Examples:**
+
+```
+.lastfm topartists
+```
+
+### `.lastfm toptracks`
+
+Your most played tracks on Last.fm.
+
+**Usage:** `.lastfm toptracks [username]`
+
+**Aliases:** `.fm toptracks`
+
+| Argument | Required | What it is |
+| --- | --- | --- |
+| `username` | no | a Last.fm username — omit to use your saved one |
+
+**Examples:**
+
+```
+.lastfm toptracks
+```
+
 ## Tickets
 
 ### `.ticket add`
@@ -4234,6 +4465,24 @@ Preview a hex colour.
 ```
 .color #8b5cf6
 .color random
+```
+
+### `.define`
+
+Look a word up in a proper dictionary.
+
+**Usage:** `.define <word>`
+
+**Aliases:** `.dictionary`
+
+| Argument | Required | What it is |
+| --- | --- | --- |
+| `word` | yes | the word to define |
+
+**Examples:**
+
+```
+.define serendipity
 ```
 
 ### `.delreminder`
@@ -4646,6 +4895,41 @@ Delete a to-do item.
 
 ```
 .todo remove 3
+```
+
+### `.urban`
+
+Results are user-written and often rude. Best kept to channels where that is fine.
+
+**Usage:** `.urban <term>`
+
+**Aliases:** `.ud`, `.urbandictionary`
+
+| Argument | Required | What it is |
+| --- | --- | --- |
+| `term` | yes | what to look up |
+
+**Examples:**
+
+```
+.urban yeet
+```
+
+### `.weather`
+
+Needs an OpenWeather API key on the bot. Give a city, or "city, country code" to be specific.
+
+**Usage:** `.weather <place>`
+
+| Argument | Required | What it is |
+| --- | --- | --- |
+| `place` | yes | city name, optionally with a country code |
+
+**Examples:**
+
+```
+.weather london
+.weather paris, fr
 ```
 
 ## Voice

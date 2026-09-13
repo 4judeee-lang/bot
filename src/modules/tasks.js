@@ -10,6 +10,7 @@ const { themeFor } = require('../lib/embeds');
 const { sendLog } = require('../lib/modlog');
 const { popRoles } = require('../lib/moderation');
 const giveaways = require('./giveaways');
+const counters = require('./counters');
 const { now, truncate } = require('../lib/util');
 const logger = require('../lib/logger').scoped('tasks');
 
@@ -136,7 +137,15 @@ function start(client) {
   run();
   const timer = setInterval(run, 60_000);
   timer.unref?.();
-  logger.info('Scheduler started (60s interval)');
+
+  // Counter channels get their own slower cycle: Discord only allows two
+  // renames per channel every ten minutes.
+  const counterTimer = setInterval(() => {
+    counters.refreshAll(client).catch((error) => logger.debug(`Counter refresh failed: ${error.message}`));
+  }, 600_000);
+  counterTimer.unref?.();
+
+  logger.info('Scheduler started (60s tick, 10m counter refresh)');
   return timer;
 }
 

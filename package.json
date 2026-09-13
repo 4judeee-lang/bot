@@ -14,7 +14,8 @@
     "deploy": "node scripts/deploy-commands.js",
     "docs": "node scripts/generate-docs.js",
     "check": "node scripts/validate.js",
-    "test": "node scripts/validate.js && node scripts/selftest.js"
+    "test": "node scripts/validate.js && node scripts/selftest.js",
+    "test:ui": "node scripts/uitest.js"
   },
   "keywords": [
     "discord",

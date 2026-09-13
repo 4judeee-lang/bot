@@ -567,7 +567,16 @@ img { max-width: 100%; height: auto; }
   grid-template-columns: 250px minmax(0, 1fr);
   gap: 32px;
   align-items: start;
-  padding: 28px 0 80px;
+  padding-block: 28px 80px;
+}
+
+/* Grid children are min-width:auto by default, which lets a wide child
+   (the category strip, a table) stretch the column and scroll the page
+   sideways. Pinning to 0 keeps that overflow inside its own container. */
+.dash > *,
+.dash-main,
+.guide-layout > * {
+  min-width: 0;
 }
 
 .dash-side {
@@ -636,10 +645,12 @@ img { max-width: 100%; height: auto; }
   .side-nav {
     flex-direction: row;
     gap: 6px;
+    max-width: 100%;
     overflow-x: auto;
     padding-bottom: 8px;
     scrollbar-width: thin;
     scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
   }
 
   .side-nav button {
@@ -772,6 +783,7 @@ select {
 
 .switch input {
   position: absolute;
+  z-index: 1; /* the track is positioned too, so keep the real input on top */
   opacity: 0;
   width: 46px;
   height: 26px;
@@ -966,9 +978,15 @@ select {
 
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  /* Six tiles: three across on desktop, two on a phone — never an
+     awkward five-plus-one row. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 24px;
+}
+
+@media (max-width: 620px) {
+  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .stat-tile {
@@ -1086,6 +1104,8 @@ select {
   padding-bottom: 80px;
 }
 
+.guide-layout > * { min-width: 0; }
+
 .guide-side {
   position: sticky;
   top: calc(var(--header-h) + 20px);
@@ -1152,6 +1172,7 @@ select {
   padding: 13px 16px;
   cursor: pointer;
   list-style: none;
+  overflow-wrap: anywhere;
   transition: background 0.15s;
 }
 
@@ -1173,7 +1194,7 @@ select {
   font-size: 0.875rem;
 }
 
-.cmd-body { padding: 16px; font-size: 0.9rem; }
+.cmd-body { padding: 16px; font-size: 0.9rem; overflow-wrap: anywhere; }
 .cmd-body h4 { margin: 16px 0 6px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-dim); }
 .cmd-body h4:first-child { margin-top: 0; }
 .cmd-body p { color: var(--text-muted); }
