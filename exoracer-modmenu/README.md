@@ -1,30 +1,44 @@
 # ExoMenu: a mod menu for Exoracer (macOS, Steam)
 
-A Geode-style in-game menu for Exoracer. It has a sidebar of tabs, search, toggle switches, per-feature options, saved settings and accent themes. Other mods can add their own tabs to it.
+A Geode-style mod menu for Exoracer. It has a sidebar of tabs, search, toggle switches, per-feature options, saved settings and accent colours.
+
+The installer checks which kind of build your copy of Exoracer is and installs the matching version:
+
+| Your build | How ExoMenu loads | Where the menu is |
+| --- | --- | --- |
+| **Unity IL2CPP** (the current Steam release on macOS) | [Frida Gadget](https://frida.re/docs/gadget/) + the agent in `frida/` | In your browser at `http://127.0.0.1:7777` while the game runs |
+| Unity Mono | BepInEx 5 + the plugin in `src/` | In-game; press <kbd>`</kbd> |
 
 **Features so far**
 
 | Tab | Feature | What it does |
 | --- | --- | --- |
 | Cosmetics | **Unlock All Cosmetics** | Makes every skin, trail, glider and cosmetic show as unlocked so you can equip it. **Client-side only.** |
-| Display | FPS Counter | Shows your frame rate in the top-right corner. |
 | Display | Unlock FPS | Turns off vsync and sets a frame rate cap (or none). |
+| Display | FPS Counter *(Mono version only)* | Shows your frame rate in the top-right corner. |
+| Tools | Cosmetic dump | Writes a list of the game's cosmetic classes and checks, for tuning Unlock All. |
 
-## Install
+## Install (IL2CPP / current Steam version)
 
-1. Install the .NET SDK once, which is used to build the mod: `brew install --cask dotnet-sdk`
-2. Run the installer from this folder:
+1. Run the installer from this folder:
    ```bash
    ./install-macos.sh
    ```
    If your Steam library is somewhere else, pass the Exoracer folder:
    `./install-macos.sh "/Volumes/Games/SteamLibrary/steamapps/common/Exoracer"`
-3. Paste the launch option it prints into **Steam → Exoracer → Properties → General → Launch Options**.
-4. Launch Exoracer from Steam and press <kbd>`</kbd>, the key under <kbd>Esc</kbd>, to open the menu.
+2. Paste the launch option it prints into **Steam → Exoracer → Properties → General → Launch Options**. It looks like this:
+   `"/Users/you/Library/Application Support/Steam/steamapps/common/Exoracer/run_exomenu.sh" %command%`
+3. Launch Exoracer from Steam. The first time, the menu opens in your browser by itself. After that, go to **http://127.0.0.1:7777** while the game is running. Bookmark it.
+
+Nothing extra needs to be installed. The installer downloads Frida Gadget and uses the prebuilt `frida/exomenu-agent.js`.
+
+The menu only listens on your own Mac (`127.0.0.1`), so other devices on your network can't reach it.
 
 To remove the mod, run `./install-macos.sh --uninstall` and clear the launch option.
 
-The installer checks the game first. If your copy of Exoracer isn't a Unity Mono build, it stops and saves a file listing to `exoracer-files.txt`. Send that file over and the menu can be ported to whatever engine the game uses.
+## Install (Mono builds)
+
+Same steps, but install the .NET SDK first so the plugin can be built: `brew install --cask dotnet-sdk`. Then press <kbd>`</kbd> in-game to open the menu.
 
 ## How Unlock All works (and why it's client-side only)
 
@@ -38,16 +52,23 @@ If a menu was already open when you flipped the switch, close and reopen it so i
 
 ### If something still shows as locked
 
-When the game first launches with ExoMenu, it writes `BepInEx/ExoMenu-cosmetics-dump.txt`. You can also write it from the Unlock All options. The dump lists every check that was hooked and every cosmetic-looking class and method it found. It contains names only, no save data. You can then do either of these:
+When the game first launches with ExoMenu, it writes a dump file. On the IL2CPP version that's `Exoracer/ExoMenu/cosmetics-dump.txt`; on the Mono version it's `BepInEx/ExoMenu-cosmetics-dump.txt`. You can also write it from the menu. The dump lists every check that was hooked, every check that was skipped and why, and every cosmetic-looking class and method it found. It contains names only, no save data. You can then do either of these:
 
 - **Send the dump over** and the patch list can be tailored to Exoracer's exact code.
-- **Tune it yourself** in `BepInEx/config/com.exomenu.exoracer.cfg`:
-  - `ExtraMethods`: extra checks to force, such as `Game.SkinShop.CanAfford`, or `Game.Skin.IsHidden:false` to force one to false.
-  - `IgnoredMethods`: checks the automatic scan should leave alone.
+- **Tune it yourself.** On the IL2CPP version, use the Unlock All options in the menu. On the Mono version, edit `BepInEx/config/com.exomenu.exoracer.cfg`.
+  - **Extra checks** force additional checks, such as `Game.SkinShop.CanAfford`, or `Game.Skin.IsHidden:false` to force one to false.
+  - **Checks to leave alone** are skipped by the automatic scan.
+  - **Force anyway** (IL2CPP only) hooks a check even though its compiled code is shared with something else (see below). Only use it if you're sure the other method is harmless.
+
+### Why some checks are "skipped for safety" (IL2CPP)
+
+When IL2CPP compiles the game, it merges methods that compile to identical machine code into one function. A skin's `get_IsUnlocked` can end up being the very same code as some unrelated `get_IsGrounded`. Hooking that function would change both, so ExoMenu checks every function it hooks and skips any that are shared with a method that isn't a cosmetic check. The menu lists what was skipped and what it's shared with.
 
 ## Adding your own features (the Geode part)
 
-Every feature is a `Module`. Build a BepInEx plugin that references `ExoMenu.dll` and register your modules. They get a tab, a switch, an options panel and saved settings automatically:
+On the IL2CPP version, features live in `frida/src/index.ts` and are listed in `FEATURES` in `frida/src/ui.ts`. To rebuild the agent: `cd frida && npm install && npm run build`.
+
+On the Mono version, every feature is a `Module`. Build a BepInEx plugin that references `ExoMenu.dll` and register your modules. They get a tab, a switch, an options panel and saved settings automatically:
 
 ```csharp
 [BepInPlugin("me.rainbowtrail", "Rainbow Trail", "1.0.0")]
@@ -76,12 +97,28 @@ Drop the built DLL into `BepInEx/plugins/`. `ExoMenu.Core.UI` has themed switche
 
 ## Troubleshooting
 
+**IL2CPP version**
+
+- **Nothing at http://127.0.0.1:7777.** Check that the launch option is saved and that you started the game from Steam. Then look at `Exoracer/ExoMenu/exomenu.log`. If there's no log file at all, the Gadget didn't load, so send over the output of `codesign -dv --verbose=2` on `Exoracer.app`.
+- **The game crashes on start.** Clear the launch option to play normally, and send over `exomenu.log` along with the crash report from Console.app.
+- **A Steam update broke it.** Run `./install-macos.sh` again.
+
+**Mono version**
+
 - **The menu doesn't open.** Check `BepInEx/LogOutput.log` for `ExoMenu 0.1.0 loaded`. If the log doesn't exist, BepInEx didn't start: check that the launch option is set and that you launched the game from Steam.
 - **Log says loaded but pressing <kbd>`</kbd> does nothing.** Some games destroy BepInEx's manager object. Set `HideManagerGameObject = true` in `BepInEx/config/BepInEx.cfg`.
 - **Menu is tiny on a Retina screen.** Go to Settings → Menu size, or edit `Scale` in the config.
 - **Apple Silicon Macs.** The installer checks whether BepInEx can load natively. If not, it gives you a launch option that runs the game under Rosetta while it's modded.
 
 ## Building by hand
+
+IL2CPP agent:
+
+```bash
+cd frida && npm install && npm run build   # writes frida/exomenu-agent.js
+```
+
+Mono plugin:
 
 ```bash
 dotnet build src/ExoMenu.csproj -c Release \
