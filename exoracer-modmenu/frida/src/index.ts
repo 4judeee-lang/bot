@@ -3,7 +3,7 @@ import { serve, Request, Response } from "./http.js";
 import { deepDump, dump, scan, ScanResult, Target } from "./scanner.js";
 import { PAGE } from "./ui.js";
 
-const VERSION = "0.2.1";
+const VERSION = "0.2.2";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)
@@ -29,6 +29,20 @@ function log(message: string): void {
     } catch {}
 }
 
+/**
+ * Replaces a file's contents. File.writeAllText left stale bytes behind when the new text was shorter
+ * (settings.json ended up with a stray "}"), so open with "w", which truncates first.
+ */
+function writeText(path: string, text: string): void {
+    const f = new File(path, "w");
+    try {
+        f.write(text);
+        f.flush();
+    } finally {
+        f.close();
+    }
+}
+
 // ── settings ────────────────────────────────────────────────────────────────────────────
 
 interface Settings {
@@ -43,10 +57,24 @@ interface Settings {
 const DEFAULTS: Settings = { unlockAll: false, fpsUnlock: false, fpsTarget: 0, extraMethods: [], ignoredMethods: [], forceShared: [] };
 
 function loadSettings(): Settings {
+    let text: string;
     try {
-        return { ...DEFAULTS, ...JSON.parse(File.readAllText(SETTINGS_PATH)) };
+        text = File.readAllText(SETTINGS_PATH);
     } catch {
         return { ...DEFAULTS };
+    }
+    try {
+        return { ...DEFAULTS, ...JSON.parse(text) };
+    } catch {
+        // Older versions could leave junk after the closing brace; keep what's before it.
+        try {
+            const repaired = { ...DEFAULTS, ...JSON.parse(text.slice(0, text.lastIndexOf("}"))) };
+            log("Repaired settings.json");
+            return repaired;
+        } catch {
+            log("settings.json was unreadable; starting from defaults");
+            return { ...DEFAULTS };
+        }
     }
 }
 
@@ -54,7 +82,7 @@ const settings = loadSettings();
 
 function saveSettings(): void {
     try {
-        File.writeAllText(SETTINGS_PATH, JSON.stringify(settings, null, 2));
+        writeText(SETTINGS_PATH, JSON.stringify(settings, null, 2));
     } catch (e) {
         log(`Couldn't save settings: ${e}`);
     }
@@ -170,10 +198,10 @@ async function setFpsUnlock(on: boolean): Promise<void> {
 /** Writes both dumps and returns the folder they're in. */
 function writeDump(): Promise<string> {
     return Il2Cpp.perform(() => {
-        File.writeAllText(DUMP_PATH, dump(lastScan ?? rescan()));
+        writeText(DUMP_PATH, dump(lastScan ?? rescan()));
         log(`Wrote ${DUMP_PATH}`);
         const started = Date.now();
-        File.writeAllText(DEEP_DUMP_PATH, deepDump());
+        writeText(DEEP_DUMP_PATH, deepDump());
         log(`Wrote ${DEEP_DUMP_PATH} in ${Date.now() - started} ms`);
         return DATA_DIR;
     });
@@ -257,7 +285,7 @@ Il2Cpp.perform(async () => {
     const port = await serve(FIRST_PORT, route, log);
     const url = `http://127.0.0.1:${port}/`;
     try {
-        File.writeAllText(URL_PATH, url);
+        writeText(URL_PATH, url);
     } catch {}
     log(`Menu is at ${url}`);
 

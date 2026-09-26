@@ -115,7 +115,7 @@ install_il2cpp() {
   chmod +x "$GAME_DIR/run_exomenu.sh"
   xattr -d com.apple.quarantine "$GAME_DIR/run_exomenu.sh" 2>/dev/null || true
   touch "$menu_dir/open-on-next-launch"
-  ok "Installed to $menu_dir"
+  ok "Installed ExoMenu $(cat "$HERE/frida/VERSION" 2>/dev/null || echo "?") to $menu_dir"
 
   bold "4/4  Steam launch options"
   printf '\n  In Steam: right-click Exoracer → Properties → General → Launch Options, paste:\n\n'
