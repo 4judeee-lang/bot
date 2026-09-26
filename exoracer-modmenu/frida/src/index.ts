@@ -1,9 +1,9 @@
 import "frida-il2cpp-bridge";
 import { serve, Request, Response } from "./http.js";
-import { dump, scan, ScanResult, Target } from "./scanner.js";
+import { deepDump, dump, scan, ScanResult, Target } from "./scanner.js";
 import { PAGE } from "./ui.js";
 
-const VERSION = "0.2.0";
+const VERSION = "0.2.1";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)
@@ -11,6 +11,7 @@ const GAME_DIR = Process.mainModule.path.split("/").slice(0, -4).join("/");
 const DATA_DIR = `${GAME_DIR}/ExoMenu`;
 const SETTINGS_PATH = `${DATA_DIR}/settings.json`;
 const DUMP_PATH = `${DATA_DIR}/cosmetics-dump.txt`;
+const DEEP_DUMP_PATH = `${DATA_DIR}/deep-dump.txt`;
 const URL_PATH = `${DATA_DIR}/menu-url.txt`;
 
 // ── logging ─────────────────────────────────────────────────────────────────────────────
@@ -166,11 +167,15 @@ async function setFpsUnlock(on: boolean): Promise<void> {
 
 // ── dump ────────────────────────────────────────────────────────────────────────────────
 
+/** Writes both dumps and returns the folder they're in. */
 function writeDump(): Promise<string> {
     return Il2Cpp.perform(() => {
         File.writeAllText(DUMP_PATH, dump(lastScan ?? rescan()));
         log(`Wrote ${DUMP_PATH}`);
-        return DUMP_PATH;
+        const started = Date.now();
+        File.writeAllText(DEEP_DUMP_PATH, deepDump());
+        log(`Wrote ${DEEP_DUMP_PATH} in ${Date.now() - started} ms`);
+        return DATA_DIR;
     });
 }
 
@@ -261,8 +266,8 @@ Il2Cpp.perform(async () => {
     if (settings.fpsUnlock) await setFpsUnlock(true).catch(e => log(`FPS unlock failed: ${e}`));
 
     try {
-        File.readAllText(DUMP_PATH);
+        File.readAllText(DEEP_DUMP_PATH);
     } catch {
-        await writeDump().catch(e => log(`Couldn't write the dump: ${e}`));
+        await writeDump().catch(e => log(`Couldn't write the dumps: ${e}`));
     }
 }).catch(e => log(`ExoMenu failed to start: ${(e as Error).stack ?? e}`));

@@ -146,8 +146,8 @@ export const PAGE = `<!doctype html>
   }
 
   function toolsTab() {
-    return '<div class="card"><div class="name">Cosmetic dump</div><div class="desc">Lists every cosmetic-looking class and check in the game (names only, no save data). Send it over if something still shows as locked.</div>' +
-      '<div class="details"><div class="row"><button class="btn" data-action="dump">Write dump file</button></div><div class="desc">Saved to ' + esc(state.dataDir) + "/cosmetics-dump.txt</div></div></div>";
+    return '<div class="card"><div class="name">Dump files</div><div class="desc">Writes cosmetics-dump.txt and deep-dump.txt: the game's cosmetic, inventory and shop classes with their fields and methods (names only, no save data). Send them over if something still shows as locked.</div>' +
+      '<div class="details"><div class="row"><button class="btn" data-action="dump">Write dump file</button></div><div class="desc">Saved to ' + esc(state.dataDir) + "</div></div></div>";
   }
 
   function settingsTab() {
@@ -197,7 +197,7 @@ export const PAGE = `<!doctype html>
     else if (t.dataset.action) {
       var a = t.dataset.action, p;
       if (a === "rescan") p = api("/api/rescan", {});
-      else if (a === "dump") p = api("/api/dump", {}).then(function (r) { alert("Dump saved to:\\n" + r.path); return refresh(); });
+      else if (a === "dump") p = api("/api/dump", {}).then(function (r) { alert("Saved cosmetics-dump.txt and deep-dump.txt to:\\n" + r.path); return refresh(); });
       else if (a === "save-lists") p = api("/api/settings", { extraMethods: setting("extraMethods"), ignoredMethods: setting("ignoredMethods"), forceShared: setting("forceShared") });
       else if (a === "save-fps") p = api("/api/settings", { fpsTarget: setting("fpsTarget") });
       t.disabled = true;

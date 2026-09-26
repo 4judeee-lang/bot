@@ -1,6 +1,6 @@
 {
   "name": "exomenu-frida-agent",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "ExoMenu for IL2CPP builds of Exoracer, loaded by Frida Gadget.",
   "type": "module",

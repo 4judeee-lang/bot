@@ -265,6 +265,73 @@ export function dump(result: ScanResult | null): string {
     return lines.join("\n") + "\n";
 }
 
+// Classes worth reading in full: where the game keeps what you own and where the customize screens ask.
+const DEEP_CLASS =
+    /inventory|customi[sz]|skin|glider|hook|trail|emote|playericon|cosmetic|equip|loadout|wardrobe|showcase|profile|^user$|userdata|localuser|currentuser|shop|store|reward|unlock|collection|catalog|gamedata/i;
+
+// Methods anywhere in the game that sound like ownership, locking or equipping, whatever they return.
+const DEEP_METHOD = /own|unlock|lock|equip|select|purchas|claim|obtain|acquire|^(has|is|can|get)(skin|glider|hook|trail|emote|icon|item|cosmetic)/i;
+const DEEP_METHOD_CONTEXT = /skin|glider|hook|trail|emote|icon|cosmetic|item|inventory|reward|customi[sz]/i;
+
+function signature(m: Il2Cpp.Method): string {
+    return `${m.isStatic ? "static " : ""}${m.returnType.name} ${m.name}(${m.parameters.map(p => `${p.type.name} ${p.name}`).join(", ")})`;
+}
+
+/**
+ * Full fields and method signatures of the inventory/skin/customize classes, plus every
+ * ownership-sounding method in the game. The first dump only lists bool checks; this one shows
+ * where ownership actually lives when the game doesn't have an IsOwned-style check.
+ */
+export function deepDump(): string {
+    const lines: string[] = [];
+    lines.push("# ExoMenu deep dump (IL2CPP)");
+    lines.push(`# Unity ${safe(() => Il2Cpp.unityVersion)} · Exoracer ${safe(() => Il2Cpp.application.version ?? "?")} · ${new Date().toISOString()}`);
+    lines.push("# Names and types only, no save data.");
+    lines.push("");
+
+    const game = Il2Cpp.domain.assemblies.filter(a => assemblyName(a).startsWith("Assembly-CSharp"));
+
+    lines.push("## Ownership-sounding methods");
+    for (const klass of allClasses(game)) {
+        const cls = typeName(klass);
+        if (cls.includes("<")) continue;
+        for (const m of methodsOf(klass)) {
+            try {
+                if (m.name.includes("<") || !DEEP_METHOD.test(m.name)) continue;
+                const context = `${cls} ${m.name} ${m.parameters.map(p => p.type.name).join(" ")} ${m.returnType.name}`;
+                if (!DEEP_METHOD_CONTEXT.test(context)) continue;
+                lines.push(`  ${cls} :: ${signature(m)}`);
+            } catch {}
+        }
+    }
+    lines.push("");
+
+    lines.push("## Inventory, skin, customize and shop classes");
+    let count = 0;
+    for (const klass of allClasses(game)) {
+        const name = typeName(klass);
+        if (name.includes("<") || !DEEP_CLASS.test(klass.name)) continue;
+        if (++count > 400) {
+            lines.push("  … truncated");
+            break;
+        }
+        lines.push("");
+        lines.push(`  class ${name} : ${safe(() => klass.parent?.fullName ?? "")}`);
+        try {
+            for (const f of klass.fields) {
+                if (f.name.includes("<") && !f.name.includes("k__BackingField")) continue;
+                lines.push(`      ${f.isStatic ? "static " : ""}${f.type.name} ${f.name}`);
+            }
+        } catch {}
+        for (const m of methodsOf(klass)) {
+            try {
+                if (!m.name.includes("<")) lines.push(`      ${signature(m)}`);
+            } catch {}
+        }
+    }
+    return lines.join("\n") + "\n";
+}
+
 function safe(f: () => string): string {
     try {
         return f();
