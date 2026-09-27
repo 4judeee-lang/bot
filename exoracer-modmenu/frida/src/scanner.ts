@@ -274,7 +274,7 @@ export function dump(result: ScanResult | null): string {
 
 // Classes worth reading in full: where the game keeps what you own and where the customize screens ask.
 const DEEP_CLASS =
-    /inventory|customi[sz]|skin|glider|hook|trail|emote|playericon|cosmetic|equip|loadout|wardrobe|showcase|profile|^user$|userdata|localuser|currentuser|shop|store|reward|unlock|collection|catalog|gamedata/i;
+    /inventory|customi[sz]|skin|glider|hook|trail|emote|playericon|cosmetic|equip|loadout|wardrobe|showcase|profile|^user$|userdata|localuser|currentuser|shop|store|reward|unlock|collection|catalog|gamedata|character|entity|player|datacontroller|debugcontroller|preview|renderer|spawn|avatar/i;
 
 // Methods anywhere in the game that sound like ownership, locking or equipping, whatever they return.
 const DEEP_METHOD = /own|unlock|lock|equip|select|purchas|claim|obtain|acquire|^(has|is|can|get)(skin|glider|hook|trail|emote|icon|item|cosmetic)/i;
@@ -318,7 +318,7 @@ export function deepDump(): string {
     for (const klass of allClasses(game)) {
         const name = typeName(klass);
         if (name.includes("<") || !DEEP_CLASS.test(klass.name)) continue;
-        if (++count > 400) {
+        if (++count > 1200) {
             lines.push("  … truncated");
             break;
         }

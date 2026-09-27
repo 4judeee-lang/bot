@@ -5,7 +5,7 @@ import { replaceWithConstant, revertTarget } from "./native.js";
 import { catalog, overrides, setOverride, Slot, SLOTS, traceEquipFlow } from "./wardrobe.js";
 import { PAGE } from "./ui.js";
 
-const VERSION = "0.3.1";
+const VERSION = "0.3.2";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)
@@ -263,13 +263,7 @@ async function route(req: Request): Promise<Response> {
                 await setUnlockAll(true);
             return json(state());
         case "/api/rescan":
-            log("Startup: applying saved wardrobe picks");
-    for (const slot of SLOTS) {
-        const id = settings.wardrobe?.[slot];
-        if (id) setOverride(slot, id, log);
-    }
-
-    if (settings.unlockAll) await setUnlockAll(true);
+            if (settings.unlockAll) await setUnlockAll(true);
             else await Il2Cpp.perform(() => void rescan());
             return json(state());
         case "/api/trace":
@@ -306,15 +300,18 @@ Il2Cpp.perform(async () => {
     } catch {}
     log(`Menu is at ${url}`);
 
+    log("Startup: applying saved wardrobe picks");
+    for (const slot of SLOTS) {
+        const id = settings.wardrobe?.[slot];
+        if (id) setOverride(slot, id, log);
+    }
+
     log("Startup: applying Unlock All");
     if (settings.unlockAll) await setUnlockAll(true);
     else unlockStatus = "Off.";
     log("Startup: done");
     if (settings.fpsUnlock) await setFpsUnlock(true).catch(e => log(`FPS unlock failed: ${e}`));
 
-    try {
-        File.readAllText(DEEP_DUMP_PATH);
-    } catch {
-        await writeDump().catch(e => log(`Couldn't write the dumps: ${e}`));
-    }
+    // Cheap (well under a second), and keeps the dumps matching the running version.
+    await writeDump().catch(e => log(`Couldn't write the dumps: ${e}`));
 }).catch(e => log(`ExoMenu failed to start: ${(e as Error).stack ?? e}`));

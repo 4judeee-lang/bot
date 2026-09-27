@@ -108,7 +108,9 @@ function describeBlueprint(log: Log): void {
 
 // ── overrides ─────────────────────────────────────────────────────────────────────────────
 
-const chosen: Partial<Record<Slot, { id: string; handle: Il2Cpp.GCHandle; pointer: NativePointer }>> = {};
+const chosen: Partial<Record<Slot, { id: string; pointer: NativePointer }>> = {};
+// Pinned forever: freeing a handle crashed in 0.3.1, and a stub may still point at the old string.
+const pins: Il2Cpp.GCHandle[] = [];
 const targets: Partial<Record<Slot, NativePointer | null>> = {};
 
 /**
@@ -137,12 +139,12 @@ export function setOverride(slot: Slot, id: string | null, log: Log): boolean {
     const target = overrideTarget(slot, log);
     if (!target) return false;
     revertTarget(target);
-    chosen[slot]?.handle.free();
     delete chosen[slot];
     if (id) {
         const str = Il2Cpp.string(id);
         // Pin it so the garbage collector never frees a string the game is still reading.
-        chosen[slot] = { id, handle: str.object.ref(true), pointer: str.handle };
+        pins.push(str.object.ref(true));
+        chosen[slot] = { id, pointer: str.handle };
         replaceWithConstant(target, str.handle);
     }
     log(`Wardrobe: ${slot} → ${id ?? "(your own)"}`);
