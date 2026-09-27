@@ -183,7 +183,7 @@ export const PAGE = `<!doctype html>
 
   function toolsTab() {
     return '<div class="card"><div class="name">Dump files</div><div class="desc">Writes cosmetics-dump.txt and deep-dump.txt: the game&#39;s cosmetic, inventory and shop classes with their fields and methods (names only, no save data). Send them over if something still shows as locked.</div>' +
-      '<div class="details"><div class="row"><button class="btn" data-action="dump">Write dump file</button></div><div class="desc">Saved to ' + esc(state.dataDir) + "</div></div></div>";
+      '<div class="details"><div class="row"><button class="btn" data-action="dump">Write dump file</button><button class="btn ghost" data-action="trace">Record equip clicks</button></div><div class="desc">Record equip clicks: then equip a skin and a trail you own in the game, and send exomenu.log.</div><div class="desc">Saved to ' + esc(state.dataDir) + "</div></div></div>";
   }
 
   function settingsTab() {
@@ -244,6 +244,7 @@ export const PAGE = `<!doctype html>
       if (a === "rescan") p = api("/api/rescan", {});
       else if (a === "dump") p = api("/api/dump", {}).then(function (r) { alert("Saved cosmetics-dump.txt and deep-dump.txt to:\\n" + r.path); return refresh(); });
       else if (a === "save-lists") p = api("/api/settings", { extraMethods: setting("extraMethods"), ignoredMethods: setting("ignoredMethods"), forceShared: setting("forceShared") });
+      else if (a === "trace") p = api("/api/trace", {}).then(function (r) { alert(r.attached ? "Recording. Now equip a skin and a trail you own in the game, then send exomenu.log." : "Couldn't record anything; send exomenu.log."); return refresh(); });
       else if (a === "save-fps") p = api("/api/settings", { fpsTarget: setting("fpsTarget") });
       t.disabled = true;
       p.then(function (s) { if (s && s.settings) state = s; }).catch(function (err) { alert(err.message); }).then(function () { document.activeElement.blur(); render(); });

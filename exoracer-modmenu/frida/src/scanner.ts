@@ -146,6 +146,13 @@ function addressOwners(wanted: Set<string>): Map<string, string[]> {
     return owners;
 }
 
+/** Other methods (anywhere in the game) compiled to the same function as `method`. */
+export function sharedWith(method: Il2Cpp.Method): string[] {
+    const id = method.virtualAddress.toString();
+    const self = keyOf(method);
+    return (addressOwners(new Set([id])).get(id) ?? []).filter(k => k !== self);
+}
+
 export interface ScanOptions {
     extra: string[]; // "Namespace.Type.Method" or "Namespace.Type.Method:false"
     ignored: string[];

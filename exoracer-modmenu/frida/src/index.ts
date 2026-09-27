@@ -1,10 +1,11 @@
 import "frida-il2cpp-bridge";
 import { serve, Request, Response } from "./http.js";
 import { deepDump, dump, scan, ScanResult, Target } from "./scanner.js";
+import { replaceWithConstant, revertTarget } from "./native.js";
 import { catalog, overrides, setOverride, Slot, SLOTS, traceEquipFlow } from "./wardrobe.js";
 import { PAGE } from "./ui.js";
 
-const VERSION = "0.3.0";
+const VERSION = "0.3.1";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)
@@ -92,7 +93,7 @@ function saveSettings(): void {
 
 // ── Unlock All ──────────────────────────────────────────────────────────────────────────
 
-const hooked = new Map<string, NativeCallback<"bool", []>>(); // address → replacement kept alive
+const hooked = new Set<string>(); // addresses replaced with a native constant stub
 let lastScan: ScanResult | null = null;
 let unlockStatus = "Waiting for the game to load…";
 
@@ -107,31 +108,28 @@ function hook(targets: Target[]): number {
     for (const t of targets) {
         const id = t.address.toString();
         if (hooked.has(id)) continue;
-        // Returning a constant ignores every argument, so the signature doesn't matter.
-        const replacement = new NativeCallback(() => (t.kind === "true" ? 1 : 0), "bool", []);
         try {
-            Interceptor.replace(t.address, replacement);
-            hooked.set(id, replacement);
+            // A native "return true/false" stub: no JavaScript runs on game threads.
+            replaceWithConstant(t.address, ptr(t.kind === "true" ? 1 : 0));
+            hooked.add(id);
             log(`  hooked [${t.kind}] ${t.key}`);
         } catch (e) {
             failed++;
             log(`  couldn't hook ${t.key}: ${(e as Error).message}`);
         }
     }
-    Interceptor.flush();
     return failed;
 }
 
 function unhookAll(): void {
-    for (const id of hooked.keys()) {
+    for (const id of hooked) {
         try {
-            Interceptor.revert(ptr(id));
+            revertTarget(ptr(id));
         } catch (e) {
             log(`  couldn't unhook ${id}: ${(e as Error).message}`);
         }
     }
     hooked.clear();
-    Interceptor.flush();
 }
 
 async function setUnlockAll(on: boolean): Promise<void> {
@@ -265,11 +263,7 @@ async function route(req: Request): Promise<Response> {
                 await setUnlockAll(true);
             return json(state());
         case "/api/rescan":
-            try {
-        traceEquipFlow(log);
-    } catch (e) {
-        log(`Trace setup failed: ${e}`);
-    }
+            log("Startup: applying saved wardrobe picks");
     for (const slot of SLOTS) {
         const id = settings.wardrobe?.[slot];
         if (id) setOverride(slot, id, log);
@@ -278,9 +272,12 @@ async function route(req: Request): Promise<Response> {
     if (settings.unlockAll) await setUnlockAll(true);
             else await Il2Cpp.perform(() => void rescan());
             return json(state());
+        case "/api/trace":
+            return json({ attached: await Il2Cpp.perform(() => traceEquipFlow(log)) });
         case "/api/wardrobe":
             if (!SLOTS.includes(body.slot)) return json({ error: `unknown slot ${body.slot}` }, 400);
-            await Il2Cpp.perform(() => setOverride(body.slot, body.id ? String(body.id) : null, log));
+            if (!(await Il2Cpp.perform(() => setOverride(body.slot, body.id ? String(body.id) : null, log))))
+                return json({ error: "The game doesn't allow changing this safely yet (see exomenu.log). Send the log over." }, 400);
             settings.wardrobe = overrides();
             saveSettings();
             return json(state());
@@ -309,8 +306,10 @@ Il2Cpp.perform(async () => {
     } catch {}
     log(`Menu is at ${url}`);
 
+    log("Startup: applying Unlock All");
     if (settings.unlockAll) await setUnlockAll(true);
     else unlockStatus = "Off.";
+    log("Startup: done");
     if (settings.fpsUnlock) await setFpsUnlock(true).catch(e => log(`FPS unlock failed: ${e}`));
 
     try {

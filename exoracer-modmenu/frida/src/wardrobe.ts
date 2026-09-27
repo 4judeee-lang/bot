@@ -1,4 +1,6 @@
 import "frida-il2cpp-bridge";
+import { replaceWithConstant, revertTarget } from "./native.js";
+import { sharedWith } from "./scanner.js";
 
 // Exoracer keeps what you own in UserInventory (lists of ids) and what you wear in DataController /
 // User. Equipping goes through the server, which refuses anything you don't own. The wardrobe instead
@@ -107,39 +109,44 @@ function describeBlueprint(log: Log): void {
 // ── overrides ─────────────────────────────────────────────────────────────────────────────
 
 const chosen: Partial<Record<Slot, { id: string; handle: Il2Cpp.GCHandle; pointer: NativePointer }>> = {};
-let hooksInstalled = false;
+const targets: Partial<Record<Slot, NativePointer | null>> = {};
 
-function installHooks(log: Log): void {
-    if (hooksInstalled) return;
-    hooksInstalled = true;
-    const debug = gameClass("NyanStudio.DebugController");
-    if (!debug) return log("Wardrobe: NyanStudio.DebugController not found; can't override cosmetics");
-    for (const slot of SLOTS) {
-        const method = debug.tryMethod(OVERRIDE_METHOD[slot], 0);
-        if (!method || method.virtualAddress.isNull()) {
-            log(`Wardrobe: DebugController.${OVERRIDE_METHOD[slot]} not found`);
-            continue;
-        }
-        Interceptor.attach(method.virtualAddress, {
-            onLeave(retval) {
-                const pick = chosen[slot];
-                if (pick) retval.replace(pick.pointer);
-            },
-        });
-        log(`Wardrobe: hooked DebugController.${OVERRIDE_METHOD[slot]}`);
+/**
+ * The DebugController getter for a slot, or null if it's missing or its compiled code is shared with
+ * other methods (hooking shared code would change those too, which is what froze 0.3.0).
+ */
+function overrideTarget(slot: Slot, log: Log): NativePointer | null {
+    if (slot in targets) return targets[slot]!;
+    targets[slot] = null;
+    const method = gameClass("NyanStudio.DebugController")?.tryMethod(OVERRIDE_METHOD[slot], 0);
+    if (!method || method.virtualAddress.isNull()) {
+        log(`Wardrobe: DebugController.${OVERRIDE_METHOD[slot]} not found`);
+        return null;
     }
+    const shared = sharedWith(method);
+    if (shared.length > 0) {
+        log(`Wardrobe: not hooking DebugController.${OVERRIDE_METHOD[slot]}, its code is shared with ${shared.slice(0, 3).join(", ")}`);
+        return null;
+    }
+    targets[slot] = method.virtualAddress;
+    return method.virtualAddress;
 }
 
-export function setOverride(slot: Slot, id: string | null, log: Log): void {
-    installHooks(log);
+/** Returns false if this slot can't be overridden safely. */
+export function setOverride(slot: Slot, id: string | null, log: Log): boolean {
+    const target = overrideTarget(slot, log);
+    if (!target) return false;
+    revertTarget(target);
     chosen[slot]?.handle.free();
     delete chosen[slot];
     if (id) {
         const str = Il2Cpp.string(id);
         // Pin it so the garbage collector never frees a string the game is still reading.
         chosen[slot] = { id, handle: str.object.ref(true), pointer: str.handle };
+        replaceWithConstant(target, str.handle);
     }
     log(`Wardrobe: ${slot} → ${id ?? "(your own)"}`);
+    return true;
 }
 
 export function overrides(): Partial<Record<Slot, string>> {
@@ -154,48 +161,50 @@ export function overrides(): Partial<Record<Slot, string>> {
  * Logs the first few calls to the methods involved in equipping, with their arguments, so the
  * next version can hook exactly the right place if the DebugController override isn't used everywhere.
  */
-export function traceEquipFlow(log: Log): void {
-    const targets: [string, string, "arg" | "ret"][] = [
-        ["NyanStudio.DebugController", "GetSkin", "ret"],
-        ["NyanStudio.DebugController", "GetGliderSkin", "ret"],
-        ["NyanStudio.DebugController", "GetHookSkin", "ret"],
-        ["NyanStudio.DebugController", "GetTrail", "ret"],
-        ["NyanStudio.DataController", "get_SelectedSkin", "ret"],
-        ["NyanStudio.DataController", "get_SelectedTrail", "ret"],
-        ["NyanStudio.DataController", "set_SelectedSkin", "arg"],
-        ["NyanStudio.DataController", "set_SelectedGliderSkin", "arg"],
-        ["NyanStudio.DataController", "set_SelectedHookSkin", "arg"],
-        ["NyanStudio.DataController", "set_SelectedTrail", "arg"],
-        ["NyanStudio.CustomizeUI", "SetSelectedSkin", "arg"],
-        ["NyanStudio.CustomizeLandscapeUI", "SetSelectedSkin", "arg"],
-        ["NyanStudio.CollectionPanel", "SetSelectedSkin", "arg"],
-        ["NyanStudio.CollectionPanel", "SetSelectedTrail", "arg"],
-        ["NyanStudio.SkinItem", "OnClickSelect", "arg"],
-        ["NyanStudio.SkinInfoUI", "OnClickUse", "arg"],
+export function traceEquipFlow(log: Log): number {
+    const targets: [string, string][] = [
+        ["NyanStudio.DataController", "set_SelectedSkin"],
+        ["NyanStudio.DataController", "set_SelectedGliderSkin"],
+        ["NyanStudio.DataController", "set_SelectedHookSkin"],
+        ["NyanStudio.DataController", "set_SelectedTrail"],
+        ["NyanStudio.CustomizeUI", "SetSelectedSkin"],
+        ["NyanStudio.CustomizeUI", "SetSelectedTrail"],
+        ["NyanStudio.CustomizeLandscapeUI", "SetSelectedSkin"],
+        ["NyanStudio.CustomizeLandscapeUI", "SetSelectedTrail"],
+        ["NyanStudio.CollectionPanel", "SetSelectedSkin"],
+        ["NyanStudio.CollectionPanel", "SetSelectedGliderSkin"],
+        ["NyanStudio.CollectionPanel", "SetSelectedHookSkin"],
+        ["NyanStudio.CollectionPanel", "SetSelectedTrail"],
+        ["NyanStudio.SkinItem", "OnClickSelect"],
+        ["NyanStudio.SkinInfoUI", "OnClickUse"],
     ];
-    for (const [className, methodName, what] of targets) {
+    let attached = 0;
+    for (const [className, methodName] of targets) {
         const method = gameClass(className)?.tryMethod(methodName);
+        const label = `${className.replace("NyanStudio.", "")}.${methodName}`;
         if (!method || method.virtualAddress.isNull()) {
-            log(`Trace: ${className}.${methodName} not found`);
+            log(`Trace: ${label} not found`);
+            continue;
+        }
+        const shared = sharedWith(method);
+        if (shared.length > 0) {
+            log(`Trace: skipping ${label}, its code is shared with ${shared.slice(0, 3).join(", ")}`);
             continue;
         }
         let remaining = 6;
-        const label = `${className.replace("NyanStudio.", "")}.${methodName}`;
         const listener = Interceptor.attach(method.virtualAddress, {
             onEnter(args) {
-                if (what !== "arg" || remaining <= 0) return;
-                // Instance methods: args[0] is `this`, args[1] the first parameter; statics start at args[0].
+                if (remaining <= 0) return;
+                // Instance methods: args[0] is `this`, args[1] the first parameter.
                 const p = method.parameterCount > 0 ? args[method.isStatic ? 0 : 1] : null;
                 log(`Trace: ${label}(${p ? readString(p) : ""})`);
                 if (--remaining <= 0) Script.nextTick(() => listener.detach());
             },
-            onLeave(retval) {
-                if (what !== "ret" || remaining <= 0) return;
-                log(`Trace: ${label} → ${readString(retval)}`);
-                if (--remaining <= 0) Script.nextTick(() => listener.detach());
-            },
         });
+        attached++;
     }
+    log(`Trace: recording ${attached} equip methods; equip something in the game now`);
+    return attached;
 }
 
 function readString(p: NativePointer): string {
