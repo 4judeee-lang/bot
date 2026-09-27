@@ -1,9 +1,10 @@
 import "frida-il2cpp-bridge";
 import { serve, Request, Response } from "./http.js";
 import { deepDump, dump, scan, ScanResult, Target } from "./scanner.js";
+import { catalog, overrides, setOverride, Slot, SLOTS, traceEquipFlow } from "./wardrobe.js";
 import { PAGE } from "./ui.js";
 
-const VERSION = "0.2.2";
+const VERSION = "0.3.0";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)
@@ -52,9 +53,10 @@ interface Settings {
     extraMethods: string[];
     ignoredMethods: string[];
     forceShared: string[];
+    wardrobe: Partial<Record<Slot, string>>;
 }
 
-const DEFAULTS: Settings = { unlockAll: false, fpsUnlock: false, fpsTarget: 0, extraMethods: [], ignoredMethods: [], forceShared: [] };
+const DEFAULTS: Settings = { unlockAll: false, fpsUnlock: false, fpsTarget: 0, extraMethods: [], ignoredMethods: [], forceShared: [], wardrobe: {} };
 
 function loadSettings(): Settings {
     let text: string;
@@ -217,6 +219,7 @@ function state() {
         ...gameInfo,
         dataDir: DATA_DIR,
         settings,
+        wardrobe: overrides(),
         unlock: {
             status: unlockStatus,
             hooked: settings.unlockAll ? (lastScan?.targets ?? []).map(t => ({ key: t.key, kind: t.kind, source: t.source })) : [],
@@ -237,6 +240,7 @@ function lines(value: unknown): string[] {
 async function route(req: Request): Promise<Response> {
     if (req.method === "GET" && (req.path === "/" || req.path === "/index.html")) return { type: "text/html; charset=utf-8", body: PAGE };
     if (req.method === "GET" && req.path === "/api/state") return json(state());
+    if (req.method === "GET" && req.path === "/api/wardrobe") return json(await Il2Cpp.perform(() => catalog(log)));
 
     if (req.method !== "POST") return json({ error: "not found" }, 404);
     // Browsers can't add this header to cross-site requests without a CORS preflight we never answer,
@@ -261,8 +265,24 @@ async function route(req: Request): Promise<Response> {
                 await setUnlockAll(true);
             return json(state());
         case "/api/rescan":
-            if (settings.unlockAll) await setUnlockAll(true);
+            try {
+        traceEquipFlow(log);
+    } catch (e) {
+        log(`Trace setup failed: ${e}`);
+    }
+    for (const slot of SLOTS) {
+        const id = settings.wardrobe?.[slot];
+        if (id) setOverride(slot, id, log);
+    }
+
+    if (settings.unlockAll) await setUnlockAll(true);
             else await Il2Cpp.perform(() => void rescan());
+            return json(state());
+        case "/api/wardrobe":
+            if (!SLOTS.includes(body.slot)) return json({ error: `unknown slot ${body.slot}` }, 400);
+            await Il2Cpp.perform(() => setOverride(body.slot, body.id ? String(body.id) : null, log));
+            settings.wardrobe = overrides();
+            saveSettings();
             return json(state());
         case "/api/dump":
             return json({ path: await writeDump() });

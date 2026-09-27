@@ -13,7 +13,8 @@ The installer checks which kind of build your copy of Exoracer is and installs t
 
 | Tab | Feature | What it does |
 | --- | --- | --- |
-| Cosmetics | **Unlock All Cosmetics** | Makes every skin, trail, glider and cosmetic show as unlocked so you can equip it. **Client-side only.** |
+| Wardrobe *(IL2CPP)* | **Wear anything** | Pick any skin, glider skin, hook skin or trail and your game draws you wearing it. Uses the game's own `DebugController` override, so nothing is added to your inventory, the server is never asked, and other players still see your real cosmetics. |
+| Cosmetics | Unlock All / shop shows owned | Hooks the game's "is this unlocked?" checks. On Exoracer that only affects the shop display, since equipping goes through the server; use the Wardrobe instead. |
 | Display | Unlock FPS | Turns off vsync and sets a frame rate cap (or none). |
 | Display | FPS Counter *(Mono version only)* | Shows your frame rate in the top-right corner. |
 | Tools | Cosmetic dump | Writes a list of the game's cosmetic classes and checks, for tuning Unlock All. |

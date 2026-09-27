@@ -1,11 +1,11 @@
 {
   "name": "exomenu-frida-agent",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "private": true,
   "description": "ExoMenu for IL2CPP builds of Exoracer, loaded by Frida Gadget.",
   "type": "module",
   "scripts": {
-    "build": "frida-compile src/index.ts -o exomenu-agent.js -c",
+    "build": "node test/check-page.cjs && frida-compile src/index.ts -o exomenu-agent.js -c",
     "watch": "frida-compile src/index.ts -o exomenu-agent.js -w"
   },
   "devDependencies": {

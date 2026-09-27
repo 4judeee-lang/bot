@@ -56,6 +56,14 @@ export const PAGE = `<!doctype html>
   .swatch { all: unset; cursor: pointer; width: 28px; height: 28px; border-radius: 50%; border: 3px solid transparent; }
   .swatch.active { border-color: var(--text); }
   .empty { color: var(--muted); padding: 30px 0; text-align: center; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; max-height: 260px; overflow: auto; }
+  .pick { all: unset; cursor: pointer; background: #0000002e; border: 1px solid #ffffff14; border-radius: 8px; padding: 7px 9px; font: 12px ui-monospace, Menlo, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pick:hover { border-color: var(--accent); }
+  .pick.on { background: var(--accent); color: #0d0e12; font-weight: 700; }
+  .pick .dot { color: var(--ok); }
+  .slot-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .slot-head .grow { flex: 1; }
+  .slot-head input { width: 180px; }
   .offline { background: var(--danger); color: #fff; padding: 8px 12px; border-radius: 8px; margin-bottom: 14px; display: none; }
   label.field { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
   @media (max-width: 720px) { .app { grid-template-columns: 1fr; } aside { position: static; height: auto; flex-direction: row; flex-wrap: wrap; } .brand, .section, .spacer { display: none; } input[type=search] { width: 100%; } header { flex-wrap: wrap; } }
@@ -75,16 +83,44 @@ export const PAGE = `<!doctype html>
 <script>
 (function () {
   var FEATURES = [
-    { id: "unlockAll", tab: "Cosmetics", name: "Unlock All Cosmetics",
-      desc: "Every skin, trail, glider and cosmetic shows as unlocked. Client-side only: your save and account are never changed and other players don't see it.",
+    { id: "unlockAll", tab: "Cosmetics", name: "Shop: show everything as owned",
+      desc: "Makes the shop mark every offer as owned. Display only: equipping from the game's own screens still needs the real item, so use the Wardrobe tab to wear anything.",
       details: unlockDetails },
     { id: "fpsUnlock", tab: "Display", name: "Unlock FPS",
       desc: "Turns off vsync and raises the frame rate cap.", details: fpsDetails }
   ];
-  var TABS = ["Cosmetics", "Display", "Tools", "Settings"];
+  var TABS = ["Wardrobe", "Cosmetics", "Display", "Tools", "Settings"];
+  var SLOTS = [["skin", "Skins"], ["gliderSkin", "Glider skins"], ["hookSkin", "Hook skins"], ["trail", "Trails"]];
+  var wardrobe = null, wardrobeLoading = false, slotFilter = {};
+
+  function loadWardrobe() {
+    if (wardrobeLoading) return;
+    wardrobeLoading = true;
+    api("/api/wardrobe").then(function (w) { wardrobe = w; }).catch(function (err) { wardrobe = { error: err.message }; })
+      .then(function () { wardrobeLoading = false; render(); });
+  }
+
+  function wardrobeTab() {
+    var html = '<div class="card"><div class="name">Wardrobe</div><div class="desc">Wear any skin, glider, hook or trail. It only changes what your game draws on this Mac: nothing is added to your inventory, other players see your real cosmetics, and the server is never asked. Pick one, then go back to the game (you may need to open a level or return to the menu for it to redraw). Tap it again to go back to your own.</div></div>';
+    if (!wardrobe) { if (!wardrobeLoading) loadWardrobe(); return html + '<div class="empty">Reading the game\\'s cosmetics…</div>'; }
+    if (wardrobe.error) return html + '<div class="empty">Couldn\\'t read the cosmetics: ' + esc(wardrobe.error) + '</div>';
+    var worn = state.wardrobe || {};
+    SLOTS.forEach(function (pair) {
+      var slot = pair[0], items = wardrobe.items[slot] || [], owned = wardrobe.owned[slot] || [], q = (slotFilter[slot] || "").toLowerCase();
+      var shown = items.filter(function (id) { return id.toLowerCase().indexOf(q) >= 0; });
+      html += '<div class="card"><div class="slot-head"><div class="grow"><div class="name">' + pair[1] + ' <span class="tag">' + items.length + '</span></div><div class="desc">Wearing: ' + (worn[slot] ? "<b>" + esc(worn[slot]) + "</b> (only on your screen)" : "your own") + '</div></div>' +
+        '<input type="search" placeholder="Filter…" data-filter="' + slot + '" value="' + esc(slotFilter[slot] || "") + '">' +
+        (worn[slot] ? '<button class="btn ghost" data-wear="' + slot + '" data-id="">Use my own</button>' : "") + '</div>';
+      html += items.length ? '<div class="grid" style="margin-top:10px">' + shown.map(function (id) {
+        return '<button class="pick' + (worn[slot] === id ? " on" : "") + '" data-wear="' + slot + '" data-id="' + esc(id) + '" title="' + esc(id) + (owned.indexOf(id) >= 0 ? " (you own this)" : "") + '">' + (owned.indexOf(id) >= 0 ? '<span class="dot">● </span>' : "") + esc(id) + "</button>";
+      }).join("") + "</div>" : '<div class="desc" style="margin-top:8px">None found yet. Open the customize screen in the game once, then press Refresh.</div>';
+      html += "</div>";
+    });
+    return html + '<div><button class="btn ghost" data-action="refresh-wardrobe">Refresh list</button> <span class="desc">● = you own it</span></div>';
+  }
   var ACCENTS = ["#2ed3f0", "#f5b93b", "#ff4f9a", "#8be63c", "#9d7bff", "#ff5555"];
 
-  var state = null, tab = "Cosmetics", open = {}, busy = {};
+  var state = null, tab = "Wardrobe", open = {}, busy = {};
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
 
@@ -146,7 +182,7 @@ export const PAGE = `<!doctype html>
   }
 
   function toolsTab() {
-    return '<div class="card"><div class="name">Dump files</div><div class="desc">Writes cosmetics-dump.txt and deep-dump.txt: the game's cosmetic, inventory and shop classes with their fields and methods (names only, no save data). Send them over if something still shows as locked.</div>' +
+    return '<div class="card"><div class="name">Dump files</div><div class="desc">Writes cosmetics-dump.txt and deep-dump.txt: the game&#39;s cosmetic, inventory and shop classes with their fields and methods (names only, no save data). Send them over if something still shows as locked.</div>' +
       '<div class="details"><div class="row"><button class="btn" data-action="dump">Write dump file</button></div><div class="desc">Saved to ' + esc(state.dataDir) + "</div></div></div>";
   }
 
@@ -169,14 +205,15 @@ export const PAGE = `<!doctype html>
       html = hits.length ? hits.map(featureCard).join("") : '<div class="empty">No features match “' + esc(q) + "”.</div>";
     } else {
       $("title").textContent = tab;
-      if (tab === "Tools") html = toolsTab();
+      if (tab === "Wardrobe") html = wardrobeTab();
+      else if (tab === "Tools") html = toolsTab();
       else if (tab === "Settings") html = settingsTab();
       else {
         var list = FEATURES.filter(function (f) { return f.tab === tab; });
         html = list.length ? list.map(featureCard).join("") : '<div class="empty">Nothing here yet.</div>';
       }
     }
-    var active = document.activeElement, keep = active && active.dataset && active.dataset.setting;
+    var active = document.activeElement, keep = active && active.dataset && (active.dataset.setting || active.dataset.filter);
     if (keep) return; // don't clobber a field you're typing in
     $("content").innerHTML = html;
   }
@@ -185,6 +222,14 @@ export const PAGE = `<!doctype html>
 
   document.addEventListener("click", function (e) {
     var t = e.target.closest("button"); if (!t) return;
+    if (t.dataset.wear) {
+      var slot = t.dataset.wear, id = t.dataset.id, worn = (state.wardrobe || {})[slot];
+      if (id && worn === id) id = "";
+      t.disabled = true;
+      api("/api/wardrobe", { slot: slot, id: id || null }).then(function (s) { state = s; }).catch(function (err) { alert(err.message); }).then(render);
+      return;
+    }
+    if (t.dataset.action === "refresh-wardrobe") { wardrobe = null; render(); return; }
     if (t.dataset.tab) { tab = t.dataset.tab; $("search").value = ""; try { localStorage.setItem("exomenu-tab", tab); } catch (x) {} render(); }
     else if (t.dataset.open) { open[t.dataset.open] = !open[t.dataset.open]; render(); }
     else if (t.dataset.toggle) {
@@ -205,6 +250,13 @@ export const PAGE = `<!doctype html>
     }
   });
   $("search").addEventListener("input", render);
+  document.addEventListener("input", function (e) {
+    var slot = e.target.dataset && e.target.dataset.filter; if (!slot) return;
+    slotFilter[slot] = e.target.value;
+    var pos = e.target.selectionStart;
+    e.target.blur(); render();
+    var again = document.querySelector('[data-filter="' + slot + '"]'); if (again) { again.focus(); again.setSelectionRange(pos, pos); }
+  });
 
   refresh();
   setInterval(refresh, 2500);
