@@ -1,5 +1,5 @@
 import "frida-il2cpp-bridge";
-import { replaceWithConstant, revertTarget } from "./native.js";
+import { equipped, gameClass, readString } from "./game.js";
 import { sharedWith } from "./scanner.js";
 
 // Exoracer keeps what you own in UserInventory (lists of ids) and what you wear in DataController /
@@ -29,9 +29,6 @@ const OWNED_LIST: Record<Slot, string> = { skin: "skins", gliderSkin: "gliderSki
 
 type Log = (message: string) => void;
 
-function gameClass(name: string): Il2Cpp.Class | null {
-    return Il2Cpp.domain.tryAssembly("Assembly-CSharp")?.image.tryClass(name) ?? null;
-}
 
 function stringField(obj: Il2Cpp.Object, name: string): string | null {
     try {
@@ -107,48 +104,143 @@ function describeBlueprint(log: Log): void {
 }
 
 // ── overrides ─────────────────────────────────────────────────────────────────────────────
+//
+// CharacterEntityView.SetSkin(skin, preview) / SetGliderSkin(id) / SetHookSkin(id) /
+// SetTrail(trailId, secondaryTrailId) are what put cosmetics on a character, in menus and in levels.
+// When one of them is called with what *you* really wear, the id is swapped for your pick before the
+// game looks it up, so only your character changes and only on this Mac.
 
 const chosen: Partial<Record<Slot, { id: string; pointer: NativePointer }>> = {};
-// Pinned forever: freeing a handle crashed in 0.3.1, and a stub may still point at the old string.
+// Pinned for the whole session: the game may keep reading a string after we've moved on.
 const pins: Il2Cpp.GCHandle[] = [];
-const targets: Partial<Record<Slot, NativePointer | null>> = {};
+let extraTrails: string[] = [];
+let hooksReady: boolean | null = null;
+let swapLogs = 8;
 
-/**
- * The DebugController getter for a slot, or null if it's missing or its compiled code is shared with
- * other methods (hooking shared code would change those too, which is what froze 0.3.0).
- */
-function overrideTarget(slot: Slot, log: Log): NativePointer | null {
-    if (slot in targets) return targets[slot]!;
-    targets[slot] = null;
-    const method = gameClass("NyanStudio.DebugController")?.tryMethod(OVERRIDE_METHOD[slot], 0);
-    if (!method || method.virtualAddress.isNull()) {
-        log(`Wardrobe: DebugController.${OVERRIDE_METHOD[slot]} not found`);
-        return null;
-    }
-    const shared = sharedWith(method);
-    if (shared.length > 0) {
-        log(`Wardrobe: not hooking DebugController.${OVERRIDE_METHOD[slot]}, its code is shared with ${shared.slice(0, 3).join(", ")}`);
-        return null;
-    }
-    targets[slot] = method.virtualAddress;
-    return method.virtualAddress;
+function pinned(id: string): NativePointer {
+    const str = Il2Cpp.string(id);
+    pins.push(str.object.ref(true));
+    return str.handle;
 }
 
-/** Returns false if this slot can't be overridden safely. */
-export function setOverride(slot: Slot, id: string | null, log: Log): boolean {
-    const target = overrideTarget(slot, log);
-    if (!target) return false;
-    revertTarget(target);
-    delete chosen[slot];
-    if (id) {
-        const str = Il2Cpp.string(id);
-        // Pin it so the garbage collector never frees a string the game is still reading.
-        pins.push(str.object.ref(true));
-        chosen[slot] = { id, pointer: str.handle };
-        replaceWithConstant(target, str.handle);
+type ViewHook = { method: string; params: string[]; slot: Slot; getter: string };
+const VIEW_HOOKS: ViewHook[] = [
+    { method: "SetSkin", params: ["System.String", "System.Boolean"], slot: "skin", getter: "get_Skin" },
+    { method: "SetGliderSkin", params: ["System.String"], slot: "gliderSkin", getter: "get_GliderSkin" },
+    { method: "SetHookSkin", params: ["System.String"], slot: "hookSkin", getter: "get_HookSkin" },
+    { method: "SetTrail", params: ["System.String", "System.String"], slot: "trail", getter: "get_Trail" },
+];
+
+function installViewHooks(log: Log): boolean {
+    if (hooksReady !== null) return hooksReady;
+    const view = gameClass("NyanStudio.CharacterEntityView");
+    if (!view) {
+        log("Wardrobe: NyanStudio.CharacterEntityView not found");
+        return (hooksReady = false);
     }
+    let count = 0;
+    for (const h of VIEW_HOOKS) {
+        const method = view.tryMethod(h.method, h.params.length)?.tryOverload(...h.params);
+        if (!method || method.virtualAddress.isNull()) {
+            log(`Wardrobe: CharacterEntityView.${h.method} not found`);
+            continue;
+        }
+        const shared = sharedWith(method);
+        if (shared.length > 0) {
+            log(`Wardrobe: not hooking CharacterEntityView.${h.method}, its code is shared with ${shared.slice(0, 3).join(", ")}`);
+            continue;
+        }
+        const isTrail = h.slot === "trail";
+        Interceptor.attach(method.virtualAddress, {
+            // Runs on the game's main thread, only when a character is dressed (not every frame).
+            onEnter(args) {
+                this.mine = false;
+                const pick = chosen[h.slot];
+                if (!pick && !(isTrail && extraTrails.length > 0)) return;
+                const passed = readString(args[1]);
+                if (passed === null || passed !== equipped(h.getter)) return; // someone else's character
+                this.mine = true;
+                this.self = args[0];
+                this.secondary = isTrail ? args[2] : NULL;
+                if (pick) {
+                    args[1] = pick.pointer;
+                    if (swapLogs-- > 0) log(`Wardrobe: dressed your character: ${h.method}(${passed} → ${pick.id})`);
+                }
+            },
+            onLeave() {
+                if (isTrail && this.mine && extraTrails.length > 0 && !addingTrails) {
+                    try {
+                        addExtraTrails(new Il2Cpp.Object(this.self), log);
+                    } catch (e) {
+                        log(`Extra trails failed: ${e}`);
+                    }
+                }
+            },
+        });
+        count++;
+        log(`Wardrobe: hooked CharacterEntityView.${h.method}`);
+    }
+    return (hooksReady = count > 0);
+}
+
+// ── extra trails (experimental) ───────────────────────────────────────────────────────────
+//
+// The game gives a character two trails. For each extra one: set it as the secondary trail, clone the
+// resulting trail object onto the character, then put the real secondary trail back.
+
+let addingTrails = false;
+const clones = new Map<string, Il2Cpp.Object[]>(); // view handle → cloned trail objects
+
+function unityObject(): Il2Cpp.Class {
+    return Il2Cpp.domain.assembly("UnityEngine.CoreModule").image.class("UnityEngine.Object");
+}
+
+function addExtraTrails(view: Il2Cpp.Object, log: Log): void {
+    const key = view.handle.toString();
+    const destroy = unityObject().method("Destroy", 1);
+    for (const old of clones.get(key) ?? []) destroy.invoke(old);
+    clones.set(key, []);
+
+    const setTrail = view.method("SetTrail", 2).overload("System.String", "System.String");
+    const primary = equipped("get_Trail");
+    const secondary = equipped("get_SecondaryTrail");
+    const instantiate = unityObject().method<Il2Cpp.Object>("Instantiate", 2).overload("UnityEngine.Object", "UnityEngine.Transform");
+    const parent = view.field<Il2Cpp.Object>("trailTransform").value;
+
+    addingTrails = true;
+    try {
+        for (const id of extraTrails) {
+            setTrail.invoke(Il2Cpp.string(primary), Il2Cpp.string(id));
+            const trail = view.field<Il2Cpp.Object>("secondaryTrail").value;
+            if (trail.isNull()) continue;
+            const go = trail.method<Il2Cpp.Object>("get_gameObject").invoke();
+            clones.get(key)!.push(instantiate.invoke(go, parent));
+        }
+        setTrail.invoke(Il2Cpp.string(primary), Il2Cpp.string(secondary));
+        log(`Extra trails: added ${clones.get(key)!.length} (${extraTrails.join(", ")})`);
+    } finally {
+        addingTrails = false;
+    }
+}
+
+/** Returns false if the game's character code couldn't be hooked safely. */
+export function setOverride(slot: Slot, id: string | null, log: Log): boolean {
+    if (!installViewHooks(log)) return false;
+    delete chosen[slot];
+    if (id) chosen[slot] = { id, pointer: pinned(id) };
     log(`Wardrobe: ${slot} → ${id ?? "(your own)"}`);
     return true;
+}
+
+export function setExtraTrails(ids: string[], log: Log): boolean {
+    if (!installViewHooks(log)) return false;
+    extraTrails = ids.slice(0, 4);
+    log(`Extra trails: ${extraTrails.length ? extraTrails.join(", ") : "none"}`);
+    return true;
+}
+
+export function getExtraTrails(): string[] {
+    return [...extraTrails];
 }
 
 export function overrides(): Partial<Record<Slot, string>> {
@@ -179,6 +271,10 @@ export function traceEquipFlow(log: Log): number {
         ["NyanStudio.CollectionPanel", "SetSelectedTrail"],
         ["NyanStudio.SkinItem", "OnClickSelect"],
         ["NyanStudio.SkinInfoUI", "OnClickUse"],
+        ["NyanStudio.DataController", "set_Skin"],
+        ["NyanStudio.DataController", "set_Trail"],
+        ["NyanStudio.DataController", "set_SecondaryTrail"],
+        ["NyanStudio.DataController", "SendPendingCosmeticChange"],
     ];
     let attached = 0;
     for (const [className, methodName] of targets) {
@@ -199,7 +295,7 @@ export function traceEquipFlow(log: Log): number {
                 if (remaining <= 0) return;
                 // Instance methods: args[0] is `this`, args[1] the first parameter.
                 const p = method.parameterCount > 0 ? args[method.isStatic ? 0 : 1] : null;
-                log(`Trace: ${label}(${p ? readString(p) : ""})`);
+                log(`Trace: ${label}(${p ? quoted(p) : ""})`);
                 if (--remaining <= 0) Script.nextTick(() => listener.detach());
             },
         });
@@ -209,7 +305,7 @@ export function traceEquipFlow(log: Log): number {
     return attached;
 }
 
-function readString(p: NativePointer): string {
+function quoted(p: NativePointer): string {
     if (p.isNull()) return "null";
     try {
         const s = new Il2Cpp.String(p).content;

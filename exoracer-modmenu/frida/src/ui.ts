@@ -83,6 +83,9 @@ export const PAGE = `<!doctype html>
 <script>
 (function () {
   var FEATURES = [
+    { id: "ownEverything", tab: "Cosmetics", name: "Own every skin (on your screen)",
+      desc: "Every skin, glider, hook and trail shows up in the game\\'s customization as owned, and you can equip any of them there. Only you see it: while this is on, cosmetic changes are never sent to the server, and turning it off puts your real items back.",
+      details: function () { return '<div class="status">' + esc(state.own) + '</div><div class="desc">Reopen the customize screen after switching this on.</div>'; } },
     { id: "unlockAll", tab: "Cosmetics", name: "Shop: show everything as owned",
       desc: "Makes the shop mark every offer as owned. Display only: equipping from the game's own screens still needs the real item, so use the Wardrobe tab to wear anything.",
       details: unlockDetails },
@@ -116,6 +119,13 @@ export const PAGE = `<!doctype html>
       }).join("") + "</div>" : '<div class="desc" style="margin-top:8px">None found yet. Open the customize screen in the game once, then press Refresh.</div>';
       html += "</div>";
     });
+    var extra = state.extraTrails || [], trails = wardrobe.items.trail || [], eq = (slotFilter.extra || "").toLowerCase();
+    html += '<div class="card"><div class="slot-head"><div class="grow"><div class="name">Extra trails <span class="tag">experimental</span></div><div class="desc">The game gives you two trails; pick up to 4 more to stack on your character (your screen only). ' +
+      (extra.length ? "On: <b>" + extra.map(esc).join(", ") + "</b>" : "None picked.") + '</div></div><input type="search" placeholder="Filter…" data-filter="extra" value="' + esc(slotFilter.extra || "") + '">' +
+      (extra.length ? '<button class="btn ghost" data-extra="">Clear</button>' : "") + '</div><div class="grid" style="margin-top:10px">' +
+      trails.filter(function (id) { return id.toLowerCase().indexOf(eq) >= 0; }).map(function (id) {
+        return '<button class="pick' + (extra.indexOf(id) >= 0 ? " on" : "") + '" data-extra="' + esc(id) + '">' + esc(id) + "</button>";
+      }).join("") + "</div></div>";
     return html + '<div><button class="btn ghost" data-action="refresh-wardrobe">Refresh list</button> <span class="desc">● = you own it</span></div>';
   }
   var ACCENTS = ["#2ed3f0", "#f5b93b", "#ff4f9a", "#8be63c", "#9d7bff", "#ff5555"];
@@ -137,7 +147,11 @@ export const PAGE = `<!doctype html>
       .catch(function () { $("offline").style.display = "block"; });
   }
 
-  function isOn(f) { return !!(state && state.settings[f.id]); }
+  function isOn(f) {
+    if (!state) return false;
+    if (f.id === "ownEverything") return state.own !== "Off.";
+    return !!state.settings[f.id];
+  }
 
   function renderTabs() {
     var html = '<div class="brand"><h1>ExoMenu</h1><small>' + (state ? "v" + esc(state.version) + " · Exoracer " + esc(state.game) : "connecting…") + '</small></div><div class="section">FEATURES</div>';
@@ -186,9 +200,16 @@ export const PAGE = `<!doctype html>
       '<div class="details"><div class="row"><button class="btn" data-action="dump">Write dump file</button><button class="btn ghost" data-action="trace">Record equip clicks</button></div><div class="desc">Record equip clicks: then equip a skin and a trail you own in the game, and send exomenu.log.</div><div class="desc">Saved to ' + esc(state.dataDir) + "</div></div></div>";
   }
 
+  function menuKeyCard() {
+    var k = state.menuKey || {};
+    return '<div class="card"><div class="name">In-game menu key</div><div class="details"><div class="row"><div class="grow desc">' +
+      (k.listening ? "<b>Press any key in the game window now…</b>" : "Press <b>" + esc(k.label || "the menu key") + "</b> in the game to open or close this menu (Esc closes it too).") +
+      '</div><button class="btn" data-action="menukey">Change key</button></div></div></div>';
+  }
+
   function settingsTab() {
     var current = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
-    return '<div class="card"><div class="name">Accent color</div><div class="details"><div class="swatches">' +
+    return menuKeyCard() + '<div class="card"><div class="name">Accent color</div><div class="details"><div class="swatches">' +
       ACCENTS.map(function (c) { return '<button class="swatch' + (c === current ? " active" : "") + '" style="background:' + c + '" data-accent="' + c + '"></button>'; }).join("") +
       '</div></div></div><div class="card"><div class="name">About</div><div class="desc">ExoMenu ' + esc(state.version) + " · Unity " + esc(state.unity) + " · Exoracer " + esc(state.game) + "<br>" +
       "Everything ExoMenu changes lives in the game's memory on this Mac. It never edits your save files and never sends anything to Exoracer's servers. " +
@@ -230,6 +251,15 @@ export const PAGE = `<!doctype html>
       return;
     }
     if (t.dataset.action === "refresh-wardrobe") { wardrobe = null; render(); return; }
+    if (t.dataset.extra !== undefined) {
+      var cur = (state.extraTrails || []).slice(), id = t.dataset.extra;
+      if (!id) cur = [];
+      else if (cur.indexOf(id) >= 0) cur.splice(cur.indexOf(id), 1);
+      else if (cur.length < 4) cur.push(id);
+      else { alert("Up to 4 extra trails."); return; }
+      api("/api/extratrails", { ids: cur }).then(function (s) { state = s; }).catch(function (err) { alert(err.message); }).then(render);
+      return;
+    }
     if (t.dataset.tab) { tab = t.dataset.tab; $("search").value = ""; try { localStorage.setItem("exomenu-tab", tab); } catch (x) {} render(); }
     else if (t.dataset.open) { open[t.dataset.open] = !open[t.dataset.open]; render(); }
     else if (t.dataset.toggle) {
@@ -244,6 +274,7 @@ export const PAGE = `<!doctype html>
       if (a === "rescan") p = api("/api/rescan", {});
       else if (a === "dump") p = api("/api/dump", {}).then(function (r) { alert("Saved cosmetics-dump.txt and deep-dump.txt to:\\n" + r.path); return refresh(); });
       else if (a === "save-lists") p = api("/api/settings", { extraMethods: setting("extraMethods"), ignoredMethods: setting("ignoredMethods"), forceShared: setting("forceShared") });
+      else if (a === "menukey") p = api("/api/menukey", {});
       else if (a === "trace") p = api("/api/trace", {}).then(function (r) { alert(r.attached ? "Recording. Now equip a skin and a trail you own in the game, then send exomenu.log." : "Couldn't record anything; send exomenu.log."); return refresh(); });
       else if (a === "save-fps") p = api("/api/settings", { fpsTarget: setting("fpsTarget") });
       t.disabled = true;

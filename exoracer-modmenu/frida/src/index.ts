@@ -2,10 +2,12 @@ import "frida-il2cpp-bridge";
 import { serve, Request, Response } from "./http.js";
 import { deepDump, dump, scan, ScanResult, Target } from "./scanner.js";
 import { replaceWithConstant, revertTarget } from "./native.js";
-import { catalog, overrides, setOverride, Slot, SLOTS, traceEquipFlow } from "./wardrobe.js";
+import { catalog, getExtraTrails, overrides, setExtraTrails, setOverride, Slot, SLOTS, traceEquipFlow } from "./wardrobe.js";
+import { setOwnEverything, status as ownStatus } from "./cosmetics.js";
+import { currentKey, KeyBinding, listenForKey, startOverlay } from "./overlay.js";
 import { PAGE } from "./ui.js";
 
-const VERSION = "0.3.2";
+const VERSION = "0.4.0";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)
@@ -55,9 +57,12 @@ interface Settings {
     ignoredMethods: string[];
     forceShared: string[];
     wardrobe: Partial<Record<Slot, string>>;
+    ownEverything: boolean;
+    extraTrails: string[];
+    menuKey: KeyBinding;
 }
 
-const DEFAULTS: Settings = { unlockAll: false, fpsUnlock: false, fpsTarget: 0, extraMethods: [], ignoredMethods: [], forceShared: [], wardrobe: {} };
+const DEFAULTS: Settings = { unlockAll: false, fpsUnlock: false, fpsTarget: 0, extraMethods: [], ignoredMethods: [], forceShared: [], wardrobe: {}, ownEverything: false, extraTrails: [], menuKey: { code: 50, label: "`" } };
 
 function loadSettings(): Settings {
     let text: string;
@@ -218,6 +223,9 @@ function state() {
         dataDir: DATA_DIR,
         settings,
         wardrobe: overrides(),
+        extraTrails: getExtraTrails(),
+        own: ownStatus(),
+        menuKey: currentKey(),
         unlock: {
             status: unlockStatus,
             hooked: settings.unlockAll ? (lastScan?.targets ?? []).map(t => ({ key: t.key, kind: t.kind, source: t.source })) : [],
@@ -250,6 +258,11 @@ async function route(req: Request): Promise<Response> {
         case "/api/toggle":
             if (body.id === "unlockAll") await setUnlockAll(!!body.on);
             else if (body.id === "fpsUnlock") await setFpsUnlock(!!body.on);
+            else if (body.id === "ownEverything") {
+                await setOwnEverything(!!body.on, log);
+                settings.ownEverything = ownStatus() !== "Off.";
+                saveSettings();
+            }
             else return json({ error: `unknown feature ${body.id}` }, 400);
             return json(state());
         case "/api/settings":
@@ -265,6 +278,17 @@ async function route(req: Request): Promise<Response> {
         case "/api/rescan":
             if (settings.unlockAll) await setUnlockAll(true);
             else await Il2Cpp.perform(() => void rescan());
+            return json(state());
+        case "/api/extratrails": {
+            const ids = (Array.isArray(body.ids) ? body.ids : []).map(String).slice(0, 4);
+            if (!(await Il2Cpp.perform(() => setExtraTrails(ids, log))))
+                return json({ error: "The game's character code couldn't be hooked safely (see exomenu.log)." }, 400);
+            settings.extraTrails = ids;
+            saveSettings();
+            return json(state());
+        }
+        case "/api/menukey":
+            listenForKey();
             return json(state());
         case "/api/trace":
             return json({ attached: await Il2Cpp.perform(() => traceEquipFlow(log)) });
@@ -300,10 +324,32 @@ Il2Cpp.perform(async () => {
     } catch {}
     log(`Menu is at ${url}`);
 
+    try {
+        startOverlay(url, settings.menuKey, key => {
+            settings.menuKey = key;
+            saveSettings();
+        }, log);
+    } catch (e) {
+        log(`Overlay failed to start: ${e}`);
+    }
+
     log("Startup: applying saved wardrobe picks");
     for (const slot of SLOTS) {
         const id = settings.wardrobe?.[slot];
         if (id) setOverride(slot, id, log);
+    }
+
+    if (settings.extraTrails?.length) setExtraTrails(settings.extraTrails, log);
+    if (settings.ownEverything) {
+        // DataController loads after sign-in; keep trying for a minute.
+        let tries = 0;
+        const retry = setInterval(() => {
+            setOwnEverything(true, log)
+                .then(s => {
+                    if (s !== "Off." || ++tries >= 12) clearInterval(retry);
+                })
+                .catch(e => log(`Own everything failed: ${e}`));
+        }, 5000);
     }
 
     log("Startup: applying Unlock All");
