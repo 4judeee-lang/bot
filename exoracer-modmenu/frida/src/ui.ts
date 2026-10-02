@@ -51,6 +51,8 @@ export const PAGE = `<!doctype html>
   .status { font-size: 13px; }
   .list { font: 12px/1.6 ui-monospace, Menlo, monospace; color: var(--muted); max-height: 220px; overflow: auto; background: #0000002e; border-radius: 8px; padding: 8px 10px; }
   .list b { color: var(--ok); font-weight: 600; } .list i { color: var(--danger); font-style: normal; }
+  .tag.tas-safe { color: var(--ok); border-color: var(--ok); }
+  .tag.tas-warn { color: #f5b93b; border-color: #f5b93b; }
   .tag { font-size: 11px; color: var(--muted); border: 1px solid #ffffff26; border-radius: 99px; padding: 1px 8px; }
   .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
   .swatch { all: unset; cursor: pointer; width: 28px; height: 28px; border-radius: 50%; border: 3px solid transparent; }
@@ -92,7 +94,7 @@ export const PAGE = `<!doctype html>
     { id: "fpsUnlock", tab: "Display", name: "Unlock FPS",
       desc: "Turns off vsync and raises the frame rate cap.", details: fpsDetails }
   ];
-  var TABS = ["Wardrobe", "Trails", "Cosmetics", "Display", "Tools", "Settings"];
+  var TABS = ["Wardrobe", "Trails", "TAS", "Cosmetics", "Display", "Tools", "Settings"];
   var SLOTS = [["skin", "Skins"], ["gliderSkin", "Glider skins"], ["hookSkin", "Hook skins"], ["trail", "Trails"]];
   var wardrobe = null, wardrobeLoading = false, slotFilter = {};
 
@@ -121,6 +123,53 @@ export const PAGE = `<!doctype html>
     });
     return html + '<div><button class="btn ghost" data-action="refresh-wardrobe">Refresh list</button> <span class="desc">● = you own it</span></div>';
   }
+  var tas = null, tasBusy = false;
+
+  function refreshTas() {
+    return api("/api/tas").then(function (s) { tas = s; if (tab === "TAS") render(); }).catch(function () {});
+  }
+
+  function tasAct(action, value) {
+    if (tasBusy) return;
+    tasBusy = true;
+    api("/api/tas/action", { action: action, value: value || 0 }).then(function (s) { tas = s; })
+      .catch(function (err) { tas = Object.assign({}, tas, { error: err.message }); })
+      .then(function () { tasBusy = false; render(); });
+  }
+
+  function pill(text, kind) { return '<span class="tag tas-' + kind + '">' + esc(text) + "</span>"; }
+
+  function tasTab() {
+    if (!tas) { refreshTas(); return '<div class="empty">Checking the game…</div>'; }
+    var on = tas.on;
+    var html = '<div class="card"><div class="row"><div class="grow"><div class="name">TAS mode (practice only)</div>' +
+      '<div class="desc">Unlocks Exoracer\\'s own Autorun editor: build runs step by step (frames + jump / left / right), load any run from the run browser and edit it, step frame by frame and slow it down. ' +
+      "Before it turns on, every way a run could leave this Mac is blocked (run uploads, race and practice results, level uploads, and the live position other players see). Those blocks stay on until you restart the game.</div></div>" +
+      '<button class="switch' + (on ? " on" : "") + '" data-tas-toggle="1" aria-label="TAS mode"></button></div>' +
+      '<div class="details"><div class="status">' + esc(tas.message) + "</div>" +
+      '<div class="row">' + (tas.uploadsBlocked ? pill("Uploads blocked", "safe") : pill("Uploads normal", "idle")) +
+      (tas.inLevel ? (tas.online ? pill("Connected to a session: you won\\'t appear to others while TAS is on", "warn") : pill("Offline", "safe")) : pill("Not in a level", "idle")) + "</div>" +
+      (tas.error ? '<div class="desc" style="color:var(--danger)">' + esc(tas.error) + "</div>" : "") + "</div></div>";
+    if (!on) return html;
+
+    html += '<div class="card"><div class="name">Autorun editor</div><div class="details"><div class="row">' +
+      '<button class="btn" data-tas="open">Open the editor</button><button class="btn ghost" data-tas="loadFromRun">Load a run (WR, yours…)</button>' +
+      '<button class="btn ghost" data-tas="unload">Unload</button></div>' +
+      '<div class="desc">In the editor: add steps, set how many frames each lasts and whether it jumps left, right or not at all, then Play. "Load a run" turns any run from the run browser into editable steps.</div></div></div>';
+
+    var st = tas.loaded ? (tas.playing ? pill("Playing", "safe") : pill("Loaded", "idle")) : pill("No autorun loaded", "idle");
+    html += '<div class="card"><div class="slot-head"><div class="grow"><div class="name">Frame control</div><div class="desc">' + st +
+      " Frame <b>" + (tas.frame != null ? tas.frame : "–") + "</b> · step <b>" + (tas.step != null ? tas.step + 1 : "–") + " / " + (tas.steps || 0) + "</b>" +
+      " · game frame <b>" + (tas.gameFrame != null ? tas.gameFrame : "–") + "</b> · input <b>" + (tas.jump ? "JUMP" : "–") + " " + (tas.direction > 0 ? "→" : tas.direction < 0 ? "←" : "·") + "</b></div></div></div>" +
+      '<div class="details"><div class="row"><button class="btn ghost" data-tas="prev">◀ Frame</button><button class="btn ghost" data-tas="next">Frame ▶</button>' +
+      '<input type="number" min="0" step="1" id="tas-seek" data-setting="tas-seek" placeholder="Frame #" style="width:110px"><button class="btn ghost" data-tas="seek">Go</button></div>' +
+      '<div class="row"><span class="desc">Speed</span>' + [0.1, 0.25, 0.5, 1, 2].map(function (v) {
+        var cur = tas.speed != null && Math.abs(tas.speed - v) < 0.001;
+        return '<button class="pick' + (cur ? " on" : "") + '" data-tas="speed" data-value="' + v + '" style="text-align:center">' + v + "×</button>";
+      }).join("") + "</div></div></div>";
+    return html;
+  }
+
   var MAX_EXTRA_TRAILS = 8;
 
   function trailsTab() {
@@ -238,6 +287,7 @@ export const PAGE = `<!doctype html>
       $("title").textContent = tab;
       if (tab === "Wardrobe") html = wardrobeTab();
       else if (tab === "Trails") html = trailsTab();
+      else if (tab === "TAS") html = tasTab();
       else if (tab === "Tools") html = toolsTab();
       else if (tab === "Settings") html = settingsTab();
       else {
@@ -262,6 +312,18 @@ export const PAGE = `<!doctype html>
       return;
     }
     if (t.dataset.action === "refresh-wardrobe") { wardrobe = null; render(); return; }
+    if (t.dataset.tasToggle) {
+      api("/api/tas", { on: !(tas && tas.on) }).then(function (s) { tas = s; })
+        .catch(function (err) { tas = Object.assign({}, tas, { error: err.message }); }).then(render);
+      return;
+    }
+    if (t.dataset.tas) {
+      var a = t.dataset.tas;
+      if (a === "seek") { var el = $("tas-seek"); tasAct("seek", el ? Number(el.value) : 0); }
+      else if (a === "speed") tasAct("speed", Number(t.dataset.value));
+      else tasAct(a);
+      return;
+    }
     if (t.dataset.extra !== undefined) {
       var cur = (state.extraTrails || []).slice(), id = t.dataset.extra;
       if (!id) cur = [];
@@ -303,6 +365,8 @@ export const PAGE = `<!doctype html>
 
   refresh();
   setInterval(refresh, 2500);
+  // The TAS tab needs a faster, separate status poll while it's open.
+  setInterval(function () { if (tab === "TAS" && !$("search").value) refreshTas(); }, 700);
 })();
 </script>
 </body>

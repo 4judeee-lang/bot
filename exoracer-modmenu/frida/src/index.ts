@@ -5,9 +5,10 @@ import { replaceWithConstant, revertTarget } from "./native.js";
 import { catalog, getExtraTrails, overrides, setExtraTrails, setOverride, Slot, SLOTS, traceEquipFlow } from "./wardrobe.js";
 import { setOwnEverything, status as ownStatus } from "./cosmetics.js";
 import { currentKey, KeyBinding, listenForKey, startOverlay } from "./overlay.js";
+import { setTas, tasAction, tasStatus } from "./tas.js";
 import { PAGE } from "./ui.js";
 
-const VERSION = "0.4.2";
+const VERSION = "0.5.0";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)
@@ -250,6 +251,7 @@ async function route(req: Request): Promise<Response> {
     if (req.method === "GET" && (req.path === "/" || req.path === "/index.html")) return { type: "text/html; charset=utf-8", body: PAGE };
     if (req.method === "GET" && req.path === "/api/state") return json(state());
     if (req.method === "GET" && req.path === "/api/wardrobe") return json(await Il2Cpp.perform(() => catalog(log)));
+    if (req.method === "GET" && req.path === "/api/tas") return json(await Il2Cpp.perform(() => tasStatus()));
 
     if (req.method !== "POST") return json({ error: "not found" }, 404);
     // Browsers can't add this header to cross-site requests without a CORS preflight we never answer,
@@ -290,6 +292,12 @@ async function route(req: Request): Promise<Response> {
             saveSettings();
             return json(state());
         }
+        case "/api/tas":
+            await Il2Cpp.perform(() => void setTas(!!body.on, log), "main");
+            return json(await Il2Cpp.perform(() => tasStatus()));
+        case "/api/tas/action":
+            await Il2Cpp.perform(() => tasAction(String(body.action), Number(body.value) || 0, log), "main");
+            return json(await Il2Cpp.perform(() => tasStatus()));
         case "/api/menukey":
             listenForKey();
             return json(state());
