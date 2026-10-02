@@ -1,13 +1,13 @@
 import "frida-il2cpp-bridge";
 import { serve, Request, Response } from "./http.js";
-import { deepDump, dump, scan, ScanResult, Target } from "./scanner.js";
+import { deepDump, dump, scan, ScanResult, Target, tasDump } from "./scanner.js";
 import { replaceWithConstant, revertTarget } from "./native.js";
 import { catalog, getExtraTrails, overrides, setExtraTrails, setOverride, Slot, SLOTS, traceEquipFlow } from "./wardrobe.js";
 import { setOwnEverything, status as ownStatus } from "./cosmetics.js";
 import { currentKey, KeyBinding, listenForKey, startOverlay } from "./overlay.js";
 import { PAGE } from "./ui.js";
 
-const VERSION = "0.4.1";
+const VERSION = "0.4.2";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)
@@ -16,6 +16,7 @@ const DATA_DIR = `${GAME_DIR}/ExoMenu`;
 const SETTINGS_PATH = `${DATA_DIR}/settings.json`;
 const DUMP_PATH = `${DATA_DIR}/cosmetics-dump.txt`;
 const DEEP_DUMP_PATH = `${DATA_DIR}/deep-dump.txt`;
+const TAS_DUMP_PATH = `${DATA_DIR}/tas-dump.txt`;
 const URL_PATH = `${DATA_DIR}/menu-url.txt`;
 
 // ── logging ─────────────────────────────────────────────────────────────────────────────
@@ -208,6 +209,8 @@ function writeDump(): Promise<string> {
         const started = Date.now();
         writeText(DEEP_DUMP_PATH, deepDump());
         log(`Wrote ${DEEP_DUMP_PATH} in ${Date.now() - started} ms`);
+        writeText(TAS_DUMP_PATH, tasDump());
+        log(`Wrote ${TAS_DUMP_PATH}`);
         return DATA_DIR;
     });
 }
