@@ -234,7 +234,7 @@ export function setOverride(slot: Slot, id: string | null, log: Log): boolean {
 
 export function setExtraTrails(ids: string[], log: Log): boolean {
     if (!installViewHooks(log)) return false;
-    extraTrails = ids.slice(0, 4);
+    extraTrails = ids.slice(0, 8);
     log(`Extra trails: ${extraTrails.length ? extraTrails.join(", ") : "none"}`);
     return true;
 }

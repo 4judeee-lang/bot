@@ -92,7 +92,7 @@ export const PAGE = `<!doctype html>
     { id: "fpsUnlock", tab: "Display", name: "Unlock FPS",
       desc: "Turns off vsync and raises the frame rate cap.", details: fpsDetails }
   ];
-  var TABS = ["Wardrobe", "Cosmetics", "Display", "Tools", "Settings"];
+  var TABS = ["Wardrobe", "Trails", "Cosmetics", "Display", "Tools", "Settings"];
   var SLOTS = [["skin", "Skins"], ["gliderSkin", "Glider skins"], ["hookSkin", "Hook skins"], ["trail", "Trails"]];
   var wardrobe = null, wardrobeLoading = false, slotFilter = {};
 
@@ -119,15 +119,25 @@ export const PAGE = `<!doctype html>
       }).join("") + "</div>" : '<div class="desc" style="margin-top:8px">None found yet. Open the customize screen in the game once, then press Refresh.</div>';
       html += "</div>";
     });
-    var extra = state.extraTrails || [], trails = wardrobe.items.trail || [], eq = (slotFilter.extra || "").toLowerCase();
-    html += '<div class="card"><div class="slot-head"><div class="grow"><div class="name">Extra trails <span class="tag">experimental</span></div><div class="desc">The game gives you two trails; pick up to 4 more to stack on your character (your screen only). ' +
-      (extra.length ? "On: <b>" + extra.map(esc).join(", ") + "</b>" : "None picked.") + '</div></div><input type="search" placeholder="Filter…" data-filter="extra" value="' + esc(slotFilter.extra || "") + '">' +
-      (extra.length ? '<button class="btn ghost" data-extra="">Clear</button>' : "") + '</div><div class="grid" style="margin-top:10px">' +
-      trails.filter(function (id) { return id.toLowerCase().indexOf(eq) >= 0; }).map(function (id) {
-        return '<button class="pick' + (extra.indexOf(id) >= 0 ? " on" : "") + '" data-extra="' + esc(id) + '">' + esc(id) + "</button>";
-      }).join("") + "</div></div>";
     return html + '<div><button class="btn ghost" data-action="refresh-wardrobe">Refresh list</button> <span class="desc">● = you own it</span></div>';
   }
+  var MAX_EXTRA_TRAILS = 8;
+
+  function trailsTab() {
+    var html = '<div class="card"><div class="name">Multiple trails</div><div class="desc">Exoracer gives you two trails (main + secondary). Click trails below to stack up to ' + MAX_EXTRA_TRAILS + ' more on your character, then start a level. Click one again to remove it. Only you see them.</div></div>';
+    if (!wardrobe) { if (!wardrobeLoading) loadWardrobe(); return html + '<div class="empty">Reading the game\\'s trails…</div>'; }
+    if (wardrobe.error) return html + '<div class="empty">Couldn\\'t read the trails: ' + esc(wardrobe.error) + '</div>';
+    var extra = state.extraTrails || [], trails = wardrobe.items.trail || [], eq = (slotFilter.extra || "").toLowerCase();
+    html += '<div class="card"><div class="slot-head"><div class="grow"><div class="name">Extra trails <span class="tag">' + extra.length + " / " + MAX_EXTRA_TRAILS + '</span></div><div class="desc">' +
+      (extra.length ? "Stacked: <b>" + extra.map(esc).join(", ") + "</b>" : "None picked yet.") + '</div></div><input type="search" placeholder="Filter…" data-filter="extra" value="' + esc(slotFilter.extra || "") + '">' +
+      (extra.length ? '<button class="btn ghost" data-extra="">Clear all</button>' : "") + '</div><div class="grid" style="margin-top:10px;max-height:none">' +
+      trails.filter(function (id) { return id.toLowerCase().indexOf(eq) >= 0; }).map(function (id) {
+        var n = extra.indexOf(id);
+        return '<button class="pick' + (n >= 0 ? " on" : "") + '" data-extra="' + esc(id) + '">' + (n >= 0 ? (n + 1) + ". " : "") + esc(id) + "</button>";
+      }).join("") + "</div></div>";
+    return html + '<div><button class="btn ghost" data-action="refresh-wardrobe">Refresh list</button></div>';
+  }
+
   var ACCENTS = ["#2ed3f0", "#f5b93b", "#ff4f9a", "#8be63c", "#9d7bff", "#ff5555"];
 
   var state = null, tab = "Wardrobe", open = {}, busy = {};
@@ -227,6 +237,7 @@ export const PAGE = `<!doctype html>
     } else {
       $("title").textContent = tab;
       if (tab === "Wardrobe") html = wardrobeTab();
+      else if (tab === "Trails") html = trailsTab();
       else if (tab === "Tools") html = toolsTab();
       else if (tab === "Settings") html = settingsTab();
       else {
@@ -255,8 +266,8 @@ export const PAGE = `<!doctype html>
       var cur = (state.extraTrails || []).slice(), id = t.dataset.extra;
       if (!id) cur = [];
       else if (cur.indexOf(id) >= 0) cur.splice(cur.indexOf(id), 1);
-      else if (cur.length < 4) cur.push(id);
-      else { alert("Up to 4 extra trails."); return; }
+      else if (cur.length < MAX_EXTRA_TRAILS) cur.push(id);
+      else { alert("Up to " + MAX_EXTRA_TRAILS + " extra trails."); return; }
       api("/api/extratrails", { ids: cur }).then(function (s) { state = s; }).catch(function (err) { alert(err.message); }).then(render);
       return;
     }

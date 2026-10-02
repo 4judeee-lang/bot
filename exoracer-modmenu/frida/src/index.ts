@@ -7,7 +7,7 @@ import { setOwnEverything, status as ownStatus } from "./cosmetics.js";
 import { currentKey, KeyBinding, listenForKey, startOverlay } from "./overlay.js";
 import { PAGE } from "./ui.js";
 
-const VERSION = "0.4.0";
+const VERSION = "0.4.1";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)
@@ -280,7 +280,7 @@ async function route(req: Request): Promise<Response> {
             else await Il2Cpp.perform(() => void rescan());
             return json(state());
         case "/api/extratrails": {
-            const ids = (Array.isArray(body.ids) ? body.ids : []).map(String).slice(0, 4);
+            const ids = (Array.isArray(body.ids) ? body.ids : []).map(String).slice(0, 8);
             if (!(await Il2Cpp.perform(() => setExtraTrails(ids, log))))
                 return json({ error: "The game's character code couldn't be hooked safely (see exomenu.log)." }, 400);
             settings.extraTrails = ids;
