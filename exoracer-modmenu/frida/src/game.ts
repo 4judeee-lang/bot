@@ -9,6 +9,19 @@ export function gameClass(name: string): Il2Cpp.Class | null {
     return Il2Cpp.domain.tryAssembly("Assembly-CSharp")?.image.tryClass(name) ?? null;
 }
 
+/**
+ * Main thread. Live instances of a game class. Unity objects are found with Unity's own
+ * FindObjectsOfType (cheap and safe); anything else falls back to a heap scan.
+ */
+export function liveInstances(klass: Il2Cpp.Class): Il2Cpp.Object[] {
+    try {
+        const unityObject = Il2Cpp.domain.tryAssembly("UnityEngine.CoreModule")?.image.tryClass("UnityEngine.Object");
+        const find = unityObject?.tryMethod<Il2Cpp.Array<Il2Cpp.Object>>("FindObjectsOfType", 1)?.tryOverload("System.Type");
+        if (unityObject && find && klass.isSubclassOf(unityObject, false)) return [...find.invoke(klass.type.object)];
+    } catch {}
+    return Il2Cpp.gc.choose(klass);
+}
+
 let cachedController: Il2Cpp.Object | null = null;
 
 /** The live DataController singleton (holds your user, inventory and equipped cosmetics). */

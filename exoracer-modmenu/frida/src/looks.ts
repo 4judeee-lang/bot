@@ -1,5 +1,5 @@
 import "frida-il2cpp-bridge";
-import { dataController, gameClass, probeViews } from "./game.js";
+import { dataController, gameClass, liveInstances, probeViews } from "./game.js";
 import { cachedMedia, listMedia, Media, MediaEntry, MediaPlayer, prepareMedia, unusableMedia } from "./media.js";
 import { sharedWith } from "./scanner.js";
 import { color, componentsIn, hsv, isAlive, keep, readVector3, typeOf, uclass, vector3 } from "./unity.js";
@@ -106,7 +106,7 @@ const bgPlayer = new MediaPlayer(() => bgTargets.filter(isAlive), m => log(m));
 
 function games(): Il2Cpp.Object[] {
     const klass = gameClass("NyanStudio.Game");
-    return klass ? Il2Cpp.gc.choose(klass).filter(isAlive) : [];
+    return klass ? liveInstances(klass).filter(isAlive) : [];
 }
 
 function mainCamera(): Il2Cpp.Object | null {

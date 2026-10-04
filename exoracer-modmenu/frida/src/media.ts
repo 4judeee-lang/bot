@@ -126,6 +126,8 @@ const onMain = <T>(fn: () => T) => Il2Cpp.perform(fn, "main");
 
 async function build(dir: string, entry: MediaEntry, fps: number, maxSide: number): Promise<Media> {
     const path = `${dir}/${entry.name}`;
+    const present = entry.kind === "frames" ? listDirs(dir) : listFiles(dir);
+    if (!present.includes(entry.name)) throw new Error(`it isn't in the folder anymore (moved, renamed or deleted?). Put it back and click Refresh, or pick another`);
     const animSide = Math.min(maxSide, MAX_ANIMATION_SIDE);
 
     if (entry.kind === "image") {

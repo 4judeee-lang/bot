@@ -5,6 +5,7 @@ import { ensureDir } from "./fsutil.js";
 import { serve, Request, Response } from "./http.js";
 import { iconCatalog, LOOKS_DEFAULTS, LooksSettings, looksMedia, looksNotes, startLooks, updateLooks } from "./looks.js";
 import { modsStatus, reloadMods, SavedModState, setFeature, setFeatureValue, setModEnabled, startMods, hasFeature, featureEnabled } from "./mods.js";
+import { installSafeCalls } from "./safecall.js";
 import { setCrashMarker, takeCrashMarker } from "./media.js";
 import { MUSIC_DEFAULTS, MusicSettings, musicStatus, pause, play, skip, startMusic, toggle as toggleMusic, updateMusic } from "./music.js";
 import { replaceWithConstant, revertTarget } from "./native.js";
@@ -14,7 +15,7 @@ import { startThumbs, thumbnail, ThumbKind } from "./thumbs.js";
 import { PAGE } from "./ui.js";
 import { catalog, getExtraTrails, overrides, setExtraTrails, setOverride, Slot, SLOTS, traceEquipFlow } from "./wardrobe.js";
 
-const VERSION = "0.7.2";
+const VERSION = "0.7.3";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)
@@ -401,6 +402,8 @@ async function route(req: Request): Promise<Response> {
     if (req.headers["x-exomenu"] !== "1") return json({ error: "forbidden" }, 403);
 
     const body = req.body ? JSON.parse(req.body) : {};
+    // Written before acting, so if anything ever takes the game down, the log says what it was.
+    if (req.path !== "/api/keys" || body.action !== "listen") log(`Menu: ${req.path} ${req.body.slice(0, 200)}`);
     switch (req.path) {
         case "/api/toggle":
             if (body.id === "unlockAll") await setUnlockAll(!!body.on);
@@ -501,6 +504,11 @@ Il2Cpp.perform(async () => {
         game: (() => { try { return Il2Cpp.application.version ?? "?"; } catch { return "?"; } })(), // prettier-ignore
     };
     log(`IL2CPP ready: Unity ${gameInfo.unity}, Exoracer ${gameInfo.game}`);
+    try {
+        installSafeCalls(log);
+    } catch (e) {
+        log(`Safe calls failed to install: ${e}`);
+    }
 
     const port = await serve(FIRST_PORT, route, log);
     const url = `http://127.0.0.1:${port}/`;
