@@ -17,6 +17,27 @@ const NAME_OFFSET = Process.platform === "darwin" ? 21 : 19;
 const TYPE_OFFSET = Process.platform === "darwin" ? 20 : 18;
 const DT_DIR = 4;
 
+// macOS gives each name's length (d_namlen, just before d_type); Linux names are just NUL-terminated.
+const NAMLEN_OFFSET = Process.platform === "darwin" ? 18 : -1;
+
+/** Names that aren't valid UTF-8, seen while listing (shown in the menu so they can be renamed). */
+export const unreadableNames: string[] = [];
+
+/** A directory entry's name, or null if it can't be decoded (it's skipped instead of failing the listing). */
+function entryName(entry: NativePointer): string | null {
+    const at = entry.add(NAME_OFFSET);
+    const length = NAMLEN_OFFSET >= 0 ? entry.add(NAMLEN_OFFSET).readU16() : -1;
+    try {
+        return length >= 0 ? at.readUtf8String(length) : at.readUtf8String();
+    } catch {
+        const bytes = new Uint8Array(at.readByteArray(length >= 0 ? Math.min(length, 255) : 255)!);
+        const end = length >= 0 ? bytes.length : bytes.indexOf(0) < 0 ? bytes.length : bytes.indexOf(0);
+        const hex = Array.from(bytes.subarray(0, end), b => b.toString(16).padStart(2, "0")).join(" ");
+        if (!unreadableNames.includes(hex) && unreadableNames.length < 20) unreadableNames.push(hex);
+        return null;
+    }
+}
+
 function list(dir: string, wantDirs: boolean): string[] {
     if (!opendir || !readdir || !closedir) return [];
     const handle = opendir(Memory.allocUtf8String(dir)) as NativePointer;
@@ -26,7 +47,7 @@ function list(dir: string, wantDirs: boolean): string[] {
         for (;;) {
             const entry = readdir(handle) as NativePointer;
             if (entry.isNull()) break;
-            const name = entry.add(NAME_OFFSET).readUtf8String();
+            const name = entryName(entry);
             if (!name || name.startsWith(".")) continue;
             if ((entry.add(TYPE_OFFSET).readU8() === DT_DIR) !== wantDirs) continue;
             names.push(name);

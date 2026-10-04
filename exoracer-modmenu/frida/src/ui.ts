@@ -344,6 +344,7 @@ export const PAGE = `<!doctype html>
     var list = media.unusable && media.unusable[which] || [];
     return list.length ? "<div class='hint' style='margin-top:12px'>Can't use " + list.map(esc).join(", ") + ". Use PNG, JPG or GIF (PDF/HEIC/WebP: open in Preview, File → Export as PNG).</div>" : "";
   }
+  function oddNames() { return media.unreadable ? "<div class='hint' style='margin-top:10px'>Skipped " + media.unreadable + " file" + (media.unreadable > 1 ? "s" : "") + " whose name uses characters ExoMenu can't read. Rename them with plain letters and numbers (e.g. background1.png).</div>" : ""; }
   function where(which) { return media.dirs && media.dirs[which] ? "<div class='hint' style='margin-top:10px'>Folder: <code>" + esc(media.dirs[which]) + "</code></div>" : ""; }
 
   function characterTab() {
@@ -353,7 +354,7 @@ export const PAGE = `<!doctype html>
     var nameBody = "<div class='row'><input type='color' id='name-color' value='" + esc(L.nameColor || "#ffffff") + "' aria-label='Name colour'><button class='btn small' data-action='name-color'>Use this colour</button><button class='btn ghost small' data-action='name-reset'>Reset</button></div>" +
       "<div class='row' style='margin-top:12px'><div class='grow desc' style='margin:0'>Rainbow (cycles through every colour)</div>" + sw(L.nameRainbow, "data-look-flag='nameRainbow'") + "</div>";
     var html = card("Name colour", "Colours the name above your character in levels.", "", nameBody);
-    var skinBody = mediaPicker("skinImage", media.skins, L.skinImage) + unusable("skins") + where("skins") + slider("Size", "skinImageScale", L.skinImageScale, 0.5, 2, 0.05, true) + (L.skinImage && L.skinImage.kind === "frames" ? slider("Frames per second", "skinImageFps", L.skinImageFps, 1, 30, 1) : "");
+    var skinBody = mediaPicker("skinImage", media.skins, L.skinImage) + unusable("skins") + where("skins") + oddNames() + slider("Size", "skinImageScale", L.skinImageScale, 0.5, 2, 0.05, true) + (L.skinImage && L.skinImage.kind === "frames" ? slider("Frames per second", "skinImageFps", L.skinImageFps, 1, 30, 1) : "");
     html += card("Custom skin image <span class='tag warn'>experimental</span>", "Wear your own picture or GIF as your skin (your screen only). PNG, JPG, GIF or a folder of frames. PDFs won't work: export the page as PNG first.", folderBtn("skins") + refreshBtn("refresh-media"), skinBody);
     return html;
   }
@@ -362,7 +363,7 @@ export const PAGE = `<!doctype html>
     var L = state.settings.looks;
     if (needMedia()) return "<div class='skeleton'></div>";
     if (media.error) return failed("your files", media.error, "refresh-media");
-    var body = mediaPicker("background", media.backgrounds, L.background) + unusable("backgrounds") + where("backgrounds") + slider("Zoom", "backgroundScale", L.backgroundScale, 1, 2.5, 0.05, true) + (L.background && L.background.kind === "frames" ? slider("Frames per second", "backgroundFps", L.backgroundFps, 1, 30, 1) : "") +
+    var body = mediaPicker("background", media.backgrounds, L.background) + unusable("backgrounds") + where("backgrounds") + oddNames() + slider("Zoom", "backgroundScale", L.backgroundScale, 1, 2.5, 0.05, true) + (L.background && L.background.kind === "frames" ? slider("Frames per second", "backgroundFps", L.backgroundFps, 1, 30, 1) : "") +
       "<div class='field'><label for='bg-tint'>Tint</label><div class='row'><input type='color' id='bg-tint' value='" + esc(L.backgroundTint || "#ffffff") + "'><button class='btn ghost small' data-action='bg-tint'>Apply</button><button class='btn ghost small' data-action='bg-tint-reset'>None</button></div><span></span></div>";
     return card("Your background", "Replaces the game's background in menus and levels. Still images, animated GIFs, or a folder of numbered frames (frame1.png, frame2.png…).", folderBtn("backgrounds") + refreshBtn("refresh-media"), body) + (state.notes.length ? card("Note", state.notes.map(esc).join("<br>")) : "");
   }
@@ -371,7 +372,7 @@ export const PAGE = `<!doctype html>
     var L = state.settings.looks;
     if (needMedia()) return "<div class='skeleton'></div>";
     if (media.error) return failed("your files", media.error, "refresh-media");
-    var body = mediaPicker("pfp", media.pfp, L.pfp) + unusable("pfp") + where("pfp") + (L.pfp && L.pfp.kind === "frames" ? slider("Frames per second", "pfpFps", L.pfpFps, 1, 30, 1) : "");
+    var body = mediaPicker("pfp", media.pfp, L.pfp) + unusable("pfp") + where("pfp") + oddNames() + (L.pfp && L.pfp.kind === "frames" ? slider("Frames per second", "pfpFps", L.pfpFps, 1, 30, 1) : "");
     if (!icons && !iconsLoading) loadIcons();
     var iconList = icons ? icons.icons : [];
     var tiles = "<button class='tile" + (!L.pfpIcon ? " on" : "") + "' data-icon=''><div class='thumb' data-initial='★'></div><span class='name'>Your own</span></button>" + iconList.map(function (id) { return tile("icon", id, "data-icon='" + esc(id) + "'", L.pfpIcon === id); }).join("");

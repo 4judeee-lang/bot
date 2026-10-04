@@ -1,7 +1,7 @@
 import "frida-il2cpp-bridge";
 import { setOwnEverything, status as ownStatus } from "./cosmetics.js";
 import { equipped } from "./game.js";
-import { ensureDir } from "./fsutil.js";
+import { ensureDir, unreadableNames } from "./fsutil.js";
 import { serve, Request, Response } from "./http.js";
 import { iconCatalog, LOOKS_DEFAULTS, LooksSettings, looksMedia, looksNotes, startLooks, updateLooks } from "./looks.js";
 import { modsStatus, reloadMods, SavedModState, setFeature, setFeatureValue, setModEnabled, startMods, hasFeature, featureEnabled } from "./mods.js";
@@ -15,7 +15,7 @@ import { startThumbs, thumbnail, ThumbKind } from "./thumbs.js";
 import { PAGE } from "./ui.js";
 import { catalog, getExtraTrails, overrides, setExtraTrails, setOverride, Slot, SLOTS, traceEquipFlow } from "./wardrobe.js";
 
-const VERSION = "0.7.3";
+const VERSION = "0.7.4";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)
@@ -386,7 +386,11 @@ async function route(req: Request): Promise<Response> {
     }
     if (req.method === "GET" && req.path === "/api/wardrobe") return json(await withTimeout(Il2Cpp.perform(() => catalog(log)), 10000, "listing the cosmetics"));
     // Just your files: never waits on the game, so the pickers always show what's in the folders.
-    if (req.method === "GET" && req.path === "/api/media") return json({ ...looksMedia(), dirs: FOLDERS });
+    if (req.method === "GET" && req.path === "/api/media") {
+        const media = { ...looksMedia(), dirs: FOLDERS, unreadable: unreadableNames.length };
+        if (unreadableNames.length) log(`Media: skipped ${unreadableNames.length} file name(s) that aren't valid text (bytes: ${unreadableNames.join(" | ")})`);
+        return json(media);
+    }
     if (req.method === "GET" && req.path === "/api/icons") {
         try {
             return json({ icons: await withTimeout(Il2Cpp.perform(() => iconCatalog()), 8000, "listing the profile icons") });
