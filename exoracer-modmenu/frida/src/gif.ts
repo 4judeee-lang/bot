@@ -97,7 +97,11 @@ function deinterlace(indices: Uint8Array, w: number, h: number): Uint8Array {
     return out;
 }
 
-export function decodeGif(buffer: ArrayBuffer, maxFrames = 240): Gif {
+/**
+ * With `onFrame`, frames are handed over one at a time (the canvas is reused, so copy or shrink it)
+ * instead of being kept, which keeps memory to a single frame for big animations.
+ */
+export function decodeGif(buffer: ArrayBuffer, maxFrames = 240, onFrame?: (canvas: Uint8Array, delayMs: number) => void): Gif {
     const b = new Uint8Array(buffer);
     const sig = String.fromCharCode(...b.subarray(0, 6));
     if (sig !== "GIF87a" && sig !== "GIF89a") throw new Error("not a GIF file");
@@ -115,6 +119,7 @@ export function decodeGif(buffer: ArrayBuffer, maxFrames = 240): Gif {
 
     const canvas = new Uint8Array(width * height * 4);
     const frames: GifFrame[] = [];
+    let count = 0;
     let delayMs = 100;
     let transparent = -1;
     let disposal = 0;
@@ -138,7 +143,7 @@ export function decodeGif(buffer: ArrayBuffer, maxFrames = 240): Gif {
         return out;
     };
 
-    while (p < b.length && frames.length < maxFrames) {
+    while (p < b.length && count < maxFrames) {
         const block = b[p++];
         if (block === 0x3b) break; // trailer
         if (block === 0x21) {
@@ -192,7 +197,9 @@ export function decodeGif(buffer: ArrayBuffer, maxFrames = 240): Gif {
                 }
             }
         }
-        frames.push({ rgba: canvas.slice(), delayMs });
+        if (onFrame) onFrame(canvas, delayMs);
+        else frames.push({ rgba: canvas.slice(), delayMs });
+        count++;
 
         if (disposal === 2) {
             for (let y = fy; y < Math.min(height, fy + fh); y++) canvas.fill(0, (y * width + fx) * 4, (y * width + Math.min(width, fx + fw)) * 4);
@@ -203,6 +210,6 @@ export function decodeGif(buffer: ArrayBuffer, maxFrames = 240): Gif {
         disposal = 0;
         delayMs = 100;
     }
-    if (frames.length === 0) throw new Error("the GIF has no frames");
+    if (count === 0) throw new Error("the GIF has no frames");
     return { width, height, frames };
 }

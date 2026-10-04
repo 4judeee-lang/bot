@@ -14,42 +14,40 @@ export const PAGE = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ExoMenu</title>
 <style>
-  /* Aurora: deep night ground, violet-to-cyan accent, glass surfaces in-game. */
+  /* Flat dark theme with one solid accent colour (pick another in Settings). */
   :root {
-    --ground: #0a0b12; --panel: #12131d; --surface: #181a27; --surface-2: #20233340; --raise: #232638;
+    --ground: #101114; --panel: #16171b; --surface: #1c1d22; --surface-2: #1c1d22; --raise: #26272e;
     --line: #ffffff12; --line-2: #ffffff22;
     --text: #f1f2fb; --muted: #a2a6c3; --faint: #6c7092;
-    --a1: #8b6cff; --a2: #2fd4ff; --accent: #8b6cff; --on-accent: #fff;
+    --a1: #4f8cff; --a2: #4f8cff; --accent: #4f8cff; --on-accent: #fff;
     --ok: #4ee6a7; --warn: #ffc65c; --bad: #ff6b8b;
-    --grad: linear-gradient(135deg, var(--a1), var(--a2));
+    --grad: var(--a1);
     --r-lg: 18px; --r: 13px; --r-sm: 9px;
     --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
     --display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
     --mono: ui-monospace, "SF Mono", Menlo, monospace;
     color-scheme: dark;
   }
-  html.glass { --ground: transparent; --panel: #0d0e18b8; --surface: #ffffff0d; --raise: #ffffff14; }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
   body { margin: 0; overflow-x: hidden; background: var(--ground); color: var(--text); font: 13.5px/1.45 var(--font); -webkit-font-smoothing: antialiased; overflow: hidden; }
-  html:not(.glass) body { background: radial-gradient(1200px 600px at 85% -10%, #2a1f5a55, transparent 60%), radial-gradient(900px 500px at -10% 110%, #0f4b6a40, transparent 60%), #0a0b12; }
   button { font: inherit; color: inherit; }
   .app { display: grid; grid-template-columns: 224px 1fr; height: 100%; }
 
   /* sidebar */
   aside { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 18px 12px 14px; gap: 2px; overflow-y: auto; }
   .brand { display: flex; align-items: center; gap: 11px; padding: 2px 8px 16px; }
-  .logo { width: 34px; height: 34px; border-radius: 11px; background: var(--grad); display: grid; place-items: center; color: #fff; font: 800 16px var(--display); box-shadow: 0 6px 18px #8b6cff55; }
+  .logo { width: 34px; height: 34px; border-radius: 11px; background: var(--grad); display: grid; place-items: center; color: #fff; font: 800 16px var(--display);  }
   .brand b { display: block; font: 700 15.5px var(--display); letter-spacing: .2px; }
   .brand small { color: var(--faint); font-size: 11px; }
   .group { color: var(--faint); font-size: 10.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; padding: 14px 10px 5px; }
   .tab { all: unset; cursor: pointer; position: relative; display: flex; align-items: center; gap: 11px; padding: 8px 10px; border-radius: var(--r-sm); color: var(--muted); transition: background .12s, color .12s; }
   .tab svg { width: 18px; height: 18px; flex: none; }
   .tab:hover { background: var(--raise); color: var(--text); }
-  .tab.active { background: linear-gradient(90deg, #8b6cff33, #2fd4ff14); color: var(--text); }
-  .tab.active::before { content: ""; position: absolute; left: -12px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--grad); }
-  .tab.active svg { color: var(--a2); }
-  .tab .dot { margin-left: auto; width: 7px; height: 7px; border-radius: 50%; background: var(--grad); box-shadow: 0 0 8px var(--a2); }
+  .tab.active { background: var(--raise); color: var(--text); }
+  .tab.active::before { content: ""; position: absolute; left: -12px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--a1); }
+  .tab.active svg { color: var(--a1); }
+  .tab .dot { margin-left: auto; width: 7px; height: 7px; border-radius: 50%; background: var(--a1); }
   .spacer { flex: 1; }
   .foot { color: var(--faint); font-size: 11.5px; padding: 10px 10px 0; display: flex; align-items: center; gap: 6px; }
 
@@ -64,8 +62,8 @@ export const PAGE = `<!doctype html>
   input[type=search], input[type=text], input[type=number], select {
     background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 11px; font: inherit; min-width: 0; transition: border-color .12s;
   }
-  input:focus, select:focus { outline: none; border-color: var(--a2); box-shadow: 0 0 0 3px #2fd4ff22; }
-  input[type=range] { accent-color: var(--a2); width: 100%; }
+  input:focus, select:focus { outline: none; border-color: var(--a1); }
+  input[type=range] { accent-color: var(--a1); width: 100%; }
   input[type=color] { width: 42px; height: 32px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); padding: 3px; cursor: pointer; }
 
   .stack { display: grid; gap: 14px; }
@@ -93,10 +91,10 @@ export const PAGE = `<!doctype html>
   .btn:hover { filter: brightness(1.12); } .btn:active { transform: scale(.97); }
   .tag { display: inline-block; font-size: 10.5px; font-weight: 700; color: var(--muted); background: var(--raise); border-radius: 99px; padding: 2px 8px; letter-spacing: .3px; vertical-align: 1px; }
   .tag.ok { color: var(--ok); } .tag.warn { color: var(--warn); } .tag.bad { color: var(--bad); }
-  :focus-visible { outline: 2px solid var(--a2); outline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--a1); outline-offset: 2px; }
 
   /* home */
-  .hero { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; background: linear-gradient(135deg, #8b6cff22, #2fd4ff10); border: 1px solid var(--line-2); border-radius: var(--r-lg); padding: 16px 18px; }
+  .hero { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px 18px; }
   .wearing { display: flex; gap: 10px; }
   .wear { width: 74px; display: grid; gap: 5px; justify-items: center; }
   .wear .thumb { width: 74px; height: 74px; }
@@ -104,19 +102,19 @@ export const PAGE = `<!doctype html>
   .quick { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
   .q { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px 16px; display: grid; gap: 8px; cursor: pointer; transition: border-color .15s, background .15s; }
   .q:hover { background: var(--raise); }
-  .q.on { border-color: #8b6cff88; background: linear-gradient(135deg, #8b6cff1c, #2fd4ff0c); }
+  .q.on { border-color: var(--a1); }
 
   /* item tiles with real pictures */
   .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; margin-top: 12px; }
   .tile { all: unset; cursor: pointer; position: relative; display: grid; gap: 7px; justify-items: center; padding: 10px 8px 9px; border-radius: var(--r); background: var(--surface-2); border: 1px solid var(--line); transition: border-color .12s, background .12s, transform .08s; content-visibility: auto; contain-intrinsic-size: 140px; }
   .tile:hover { background: var(--raise); border-color: var(--line-2); }
   .tile:active { transform: scale(.97); }
-  .tile.on { border-color: transparent; background: linear-gradient(var(--surface), var(--surface)) padding-box, var(--grad) border-box; border: 2px solid transparent; padding: 9px 7px 8px; }
+  .tile.on { border: 2px solid var(--a1); padding: 9px 7px 8px; }
   .tile .name { font-size: 11.5px; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tile.on .name { color: var(--text); font-weight: 650; }
-  .tile .own { position: absolute; top: 7px; left: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 6px var(--ok); }
-  .tile .num { position: absolute; top: 6px; right: 7px; font: 700 11px var(--mono); color: var(--a2); }
-  .thumb { width: 84px; height: 84px; border-radius: 10px; display: grid; place-items: center; background: radial-gradient(circle at 50% 40%, #ffffff10, transparent 70%); overflow: hidden; }
+  .tile .own { position: absolute; top: 7px; left: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+  .tile .num { position: absolute; top: 6px; right: 7px; font: 700 11px var(--mono); color: var(--a1); }
+  .thumb { width: 84px; height: 84px; border-radius: 8px; display: grid; place-items: center; background: #ffffff08; overflow: hidden; }
   .thumb img { max-width: 100%; max-height: 100%; image-rendering: auto; }
   .thumb.noimg::before { content: attr(data-initial); font: 700 26px var(--display); color: var(--faint); }
   .thumb.noimg img { display: none; }
@@ -124,7 +122,7 @@ export const PAGE = `<!doctype html>
   .medias { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-top: 12px; }
   .media { all: unset; cursor: pointer; border: 1px solid var(--line); background: var(--surface-2); border-radius: var(--r); padding: 11px 13px; display: grid; gap: 5px; transition: border-color .12s, background .12s; }
   .media:hover { background: var(--raise); }
-  .media.on { border: 2px solid transparent; padding: 10px 12px; background: linear-gradient(var(--surface), var(--surface)) padding-box, var(--grad) border-box; }
+  .media.on { border: 2px solid var(--a1); padding: 10px 12px; }
   .media b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .media .tag { justify-self: start; }
 
@@ -132,15 +130,15 @@ export const PAGE = `<!doctype html>
   .player { display: flex; align-items: center; gap: 12px; }
   .round { all: unset; cursor: pointer; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--raise); transition: transform .08s; }
   .round:active { transform: scale(.93); }
-  .round.big { width: 48px; height: 48px; background: var(--grad); color: #fff; box-shadow: 0 8px 22px #8b6cff55; }
+  .round.big { width: 48px; height: 48px; background: var(--a1); color: #fff; }
   .round svg { width: 17px; height: 17px; }
   .eq { display: inline-flex; gap: 2px; align-items: flex-end; height: 12px; margin-right: 4px; }
-  .eq i { width: 3px; background: var(--a2); border-radius: 2px; animation: eq 1s infinite ease-in-out; }
+  .eq i { width: 3px; background: var(--a1); border-radius: 2px; animation: eq 1s infinite ease-in-out; }
   .eq i:nth-child(2) { animation-delay: .2s; } .eq i:nth-child(3) { animation-delay: .4s; }
   @keyframes eq { 0%, 100% { height: 3px; } 50% { height: 12px; } }
   .track { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r-sm); cursor: pointer; }
   .track:hover { background: var(--raise); }
-  .track.on { color: var(--a2); font-weight: 650; }
+  .track.on { color: var(--a1); font-weight: 650; }
   .track svg { width: 14px; height: 14px; }
 
   .keys { width: 100%; border-collapse: collapse; }
@@ -156,7 +154,7 @@ export const PAGE = `<!doctype html>
   .skeleton { height: 120px; border-radius: var(--r-lg); background: linear-gradient(90deg, var(--surface), var(--raise), var(--surface)); background-size: 200% 100%; animation: sk 1.2s infinite linear; }
   @keyframes sk { to { background-position: -200% 0; } }
   .banner { background: #ff6b8b26; border: 1px solid #ff6b8b55; border-radius: var(--r); padding: 10px 14px; margin-bottom: 14px; }
-  .toast { position: fixed; right: 20px; bottom: 20px; background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--r); padding: 11px 15px; max-width: 380px; box-shadow: 0 14px 40px #000a; backdrop-filter: blur(12px); animation: fade .16s ease-out; }
+  .toast { position: fixed; right: 20px; bottom: 20px; background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--r); padding: 11px 15px; max-width: 380px; box-shadow: 0 14px 40px #000a; animation: fade .16s ease-out; }
   .toast.bad { border-color: var(--bad); }
   code { font: 12px var(--mono); background: var(--panel); padding: 1px 6px; border-radius: 6px; }
   pre { font: 12px/1.55 var(--mono); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 13px; overflow-x: auto; margin: 12px 0 0; }
@@ -178,7 +176,6 @@ export const PAGE = `<!doctype html>
 <script>
 (function () {
   "use strict";
-  if (location.search.indexOf("ingame=1") >= 0) document.documentElement.classList.add("glass");
 
   var ICON = {
     home: "<path d='M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z'/>",
@@ -220,7 +217,7 @@ export const PAGE = `<!doctype html>
   ];
   var SUB = {}; NAV.forEach(function (n) { if (n.id) SUB[n.id] = n.sub; });
   var SLOTS = [["skin", "Skins"], ["gliderSkin", "Glider skins"], ["hookSkin", "Hook skins"], ["trail", "Trails"]];
-  var THEMES = [["#8b6cff", "#2fd4ff", "Aurora"], ["#ff5fa2", "#ffb86b", "Sunset"], ["#4ee6a7", "#2fd4ff", "Lagoon"], ["#ff6b6b", "#ffc65c", "Ember"], ["#6c8cff", "#b06cff", "Nebula"], ["#e6e9f5", "#9aa3c7", "Frost"]];
+  var THEMES = [["#4f8cff", "#4f8cff", "Blue"], ["#ff8a3d", "#ff8a3d", "Orange"], ["#3ecf8e", "#3ecf8e", "Green"], ["#ef5b5b", "#ef5b5b", "Red"], ["#ff5fa2", "#ff5fa2", "Pink"], ["#b48cff", "#b48cff", "Purple"]];
   var MAX_EXTRA_TRAILS = 8;
 
   var state = null, stateJson = "", tab = "Home", wardrobe = null, wardrobeLoading = false, media = null, filters = {}, toastTimer = null, lastView = "", pending = 0;
@@ -228,7 +225,7 @@ export const PAGE = `<!doctype html>
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) {} return null; }
   function setTheme(a1, a2) { var r = document.documentElement.style; r.setProperty("--a1", a1); r.setProperty("--a2", a2); r.setProperty("--accent", a1); }
-  var savedTheme = store("exomenu-theme"); if (savedTheme) { var t2 = savedTheme.split(","); setTheme(t2[0], t2[1]); }
+  var savedTheme = store("exomenu-accent"); if (savedTheme) { var t2 = savedTheme.split(","); setTheme(t2[0], t2[1]); }
   tab = store("exomenu-tab") || tab;
   if (!SUB[tab]) tab = "Home";
 
@@ -436,8 +433,8 @@ export const PAGE = `<!doctype html>
   }
 
   function settingsTab() {
-    var s = state.settings, cur = (store("exomenu-theme") || THEMES[0][0] + "," + THEMES[0][1]);
-    var themes = "<div class='swatches'>" + THEMES.map(function (t) { var v = t[0] + "," + t[1]; return "<button class='swatch" + (v === cur ? " on" : "") + "' style='background:linear-gradient(135deg," + t[0] + "," + t[1] + ")' data-theme='" + v + "' title='" + t[2] + "' aria-label='" + t[2] + " theme'></button>"; }).join("") + "</div>" +
+    var s = state.settings, cur = (store("exomenu-accent") || THEMES[0][0] + "," + THEMES[0][1]);
+    var themes = "<div class='swatches'>" + THEMES.map(function (t) { var v = t[0] + "," + t[1]; return "<button class='swatch" + (v === cur ? " on" : "") + "' style='background:" + t[0] + "' data-theme='" + v + "' title='" + t[2] + "' aria-label='" + t[2] + " theme'></button>"; }).join("") + "</div>" +
       slider("Menu width", "ui-width", s.ui.width, 0.4, 0.98, 0.02, true) + slider("Menu height", "ui-height", s.ui.height, 0.4, 0.98, 0.02, true);
     var html = card("Look", "Theme colours and the size of the in-game menu.", "", themes);
     var perf = "<div class='field'><label for='fps-target'>Frame rate cap</label><input type='number' id='fps-target' min='0' max='1000' step='10' value='" + s.fpsTarget + "'><button class='btn ghost small' data-action='save-fps'>Apply</button></div><div class='hint' style='margin-top:6px'>0 = uncapped.</div>";
@@ -543,7 +540,7 @@ export const PAGE = `<!doctype html>
     if (d.modval && d.type === "toggle") { var ff = state.mods.features.filter(function (x) { return x.key === d.modval; })[0]; var nv = !(ff && ff.values[d.id]); return post("/api/mods", { action: "value", key: d.modval, id: d.id, value: nv }, null, function () { ff.values[d.id] = nv; }); }
     if (d.keyListen) return post("/api/keys", { action: "listen", id: d.keyListen }, null, function (s) { s.keys.listeningFor = d.keyListen; });
     if (d.keyClear) return post("/api/keys", { action: "clear", id: d.keyClear });
-    if (d.theme) { var parts = d.theme.split(","); setTheme(parts[0], parts[1]); store("exomenu-theme", d.theme); lastView = ""; return render(); }
+    if (d.theme) { var parts = d.theme.split(","); setTheme(parts[0], parts[1]); store("exomenu-accent", d.theme); lastView = ""; return render(); }
     switch (d.action) {
       case "refresh-wardrobe": wardrobe = null; lastView = ""; return render();
       case "refresh-media": media = null; lastView = ""; return render();

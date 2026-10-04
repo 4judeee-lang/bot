@@ -1,6 +1,6 @@
 import "frida-il2cpp-bridge";
 import { dataController, gameClass, probeViews } from "./game.js";
-import { listMedia, loadMedia, MediaEntry, MediaPlayer, unusableMedia } from "./media.js";
+import { cachedMedia, listMedia, Media, MediaEntry, MediaPlayer, prepareMedia, unusableMedia } from "./media.js";
 import { sharedWith } from "./scanner.js";
 import { color, componentsIn, hsv, isAlive, keep, readVector3, typeOf, uclass, vector3 } from "./unity.js";
 import { onMyCharacterDressed } from "./wardrobe.js";
@@ -54,15 +54,55 @@ let log: Log = () => {};
 const spriteRendererClass = () => uclass("UnityEngine.CoreModule", "UnityEngine.SpriteRenderer")!;
 const animatorClass = () => uclass("UnityEngine.AnimationModule", "UnityEngine.Animator");
 
+// ── loading ─────────────────────────────────────────────────────────────────────────────
+//
+// Pictures are loaded in the background (see media.ts). Until one is ready the game keeps its own
+// look; when it's ready, the matching apply function runs again on the main thread.
+
+type MediaSlot = "background" | "skinImage" | "pfp";
+const SIDE: Record<MediaSlot, number> = { background: 2560, skinImage: 512, pfp: 256 };
+const loadErrors = new Map<MediaSlot, string>();
+const loadingNow = new Map<MediaSlot, string>();
+
+function mediaFor(slot: MediaSlot, dir: string, entry: MediaEntry, fps: number, reapply: () => void): Media | null {
+    const ready = cachedMedia(dir, entry, fps, SIDE[slot]);
+    if (ready) return ready;
+    if (loadErrors.has(slot) || loadingNow.get(slot) === entry.name) return null;
+    loadingNow.set(slot, entry.name);
+    // Hooks call this on the main thread; do the loading from the agent thread instead.
+    setTimeout(() => {
+        prepareMedia(dir, entry, fps, SIDE[slot])
+            .then(() => {
+                if (loadingNow.get(slot) === entry.name) loadingNow.delete(slot);
+                return Il2Cpp.perform(reapply, "main");
+            })
+            .catch(e => {
+                if (loadingNow.get(slot) === entry.name) loadingNow.delete(slot);
+                const message = String((e as Error).message ?? e);
+                loadErrors.set(slot, `Couldn't use ${entry.name}: ${message}`);
+                log(`Looks: couldn't load ${entry.name}: ${(e as Error).stack ?? e}`);
+            });
+    }, 0);
+    return null;
+}
+
 // ── background ──────────────────────────────────────────────────────────────────────────
 //
-// Our own sprite, parented to the main camera so it follows it natively (no per-frame work), drawn
-// in the game's background sorting layer, with the game's own background renderers hidden.
+// Your picture goes on the game's own background sprite (so it's drawn exactly where the game's
+// background is, by the game's camera), scaled to cover the screen. Everything we change on it is
+// remembered and put back when you switch the background off.
 
-let bgObject: Il2Cpp.Object | null = null; // our GameObject
-let bgRenderer: Il2Cpp.Object | null = null;
-const hiddenGameRenderers = new Set<string>(); // game renderers we disabled, to give back
-const bgPlayer = new MediaPlayer(() => (isAlive(bgRenderer) ? [bgRenderer!] : []), m => log(m));
+interface SavedRenderer {
+    renderer: Il2Cpp.Object;
+    sprite: Il2Cpp.Object | null;
+    enabled: boolean;
+    scale: { x: number; y: number; z: number };
+    color: Il2Cpp.ValueType;
+    drawMode: number | null;
+}
+const saved = new Map<string, SavedRenderer>();
+let bgTargets: Il2Cpp.Object[] = [];
+const bgPlayer = new MediaPlayer(() => bgTargets.filter(isAlive), m => log(m));
 
 function games(): Il2Cpp.Object[] {
     const klass = gameClass("NyanStudio.Game");
@@ -74,77 +114,123 @@ function mainCamera(): Il2Cpp.Object | null {
     return cam && !cam.isNull() ? cam : null;
 }
 
-function gameRenderers(): Il2Cpp.Object[] {
-    const out: Il2Cpp.Object[] = [];
-    for (const g of games()) {
-        for (const f of ["plainBackgroundSpriteRenderer", "customBackgroundSpriteRenderer"]) {
-            const r = g.tryField<Il2Cpp.Object>(f)?.value;
-            if (isAlive(r)) out.push(r!);
-        }
-    }
-    return out;
+function rendererOf(game: Il2Cpp.Object, field: string): Il2Cpp.Object | null {
+    const r = game.tryField<Il2Cpp.Object>(field)?.value;
+    return isAlive(r) ? r! : null;
 }
 
-function ensureBackgroundObject(): boolean {
-    const cam = mainCamera();
-    if (!cam) return false;
-    const camTransform = cam.method<Il2Cpp.Object>("get_transform").invoke();
-    if (!isAlive(bgObject)) {
-        const go = uclass("UnityEngine.CoreModule", "UnityEngine.GameObject")!.alloc();
-        go.method(".ctor", 1).invoke(Il2Cpp.string("ExoMenu Background"));
-        bgObject = keep(go);
-        bgRenderer = keep(go.method<Il2Cpp.Object>("AddComponent", 1).overload("System.Type").invoke(typeOf(spriteRendererClass())));
+function visible(r: Il2Cpp.Object): boolean {
+    try {
+        const go = r.method<Il2Cpp.Object>("get_gameObject").invoke();
+        return r.method<boolean>("get_enabled").invoke() && go.method<boolean>("get_activeInHierarchy").invoke();
+    } catch {
+        return false;
     }
-    const t = bgObject!.method<Il2Cpp.Object>("get_transform").invoke();
-    t.method("SetParent", 2).overload("UnityEngine.Transform", "System.Boolean").invoke(camTransform, false);
-    // Copy the game's background sorting so we draw where its background was.
-    const ref = gameRenderers()[0];
-    if (ref) {
-        bgRenderer!.method("set_sortingLayerID").invoke(ref.method<number>("get_sortingLayerID").invoke());
-        bgRenderer!.method("set_sortingOrder").invoke(ref.method<number>("get_sortingOrder").invoke());
-    } else {
-        bgRenderer!.method("set_sortingOrder").invoke(-32000);
-    }
-    const far = cam.method<number>("get_farClipPlane").invoke();
-    t.method("set_localPosition").invoke(vector3(0, 0, Math.min(far * 0.5, 500)));
-    return true;
 }
 
-function fitBackground(): void {
-    const media = bgPlayer.current;
+function remember(r: Il2Cpp.Object): void {
+    const k = r.handle.toString();
+    if (saved.has(k)) return;
+    let drawMode: number | null = null;
+    try {
+        drawMode = r.method<number>("get_drawMode").invoke();
+    } catch {}
+    const sprite = r.method<Il2Cpp.Object>("get_sprite").invoke();
+    saved.set(k, {
+        renderer: r,
+        sprite: sprite && !sprite.isNull() ? sprite : null,
+        enabled: r.method<boolean>("get_enabled").invoke(),
+        scale: readVector3(r.method<Il2Cpp.Object>("get_transform").invoke().method<Il2Cpp.ValueType>("get_localScale").invoke()),
+        color: r.method<Il2Cpp.ValueType>("get_color").invoke(),
+        drawMode,
+    });
+}
+
+/** The size of the camera's view, in world units, at the renderer's distance. */
+function viewSize(cam: Il2Cpp.Object, r: Il2Cpp.Object): { width: number; height: number } {
+    const aspect = cam.method<number>("get_aspect").invoke();
+    if (cam.method<boolean>("get_orthographic").invoke()) {
+        const height = 2 * cam.method<number>("get_orthographicSize").invoke();
+        return { width: height * aspect, height };
+    }
+    const camZ = readVector3(cam.method<Il2Cpp.Object>("get_transform").invoke().method<Il2Cpp.ValueType>("get_position").invoke()).z;
+    const z = readVector3(r.method<Il2Cpp.Object>("get_transform").invoke().method<Il2Cpp.ValueType>("get_position").invoke()).z;
+    const height = 2 * Math.abs(z - camZ) * Math.tan((cam.method<number>("get_fieldOfView").invoke() * Math.PI) / 360);
+    return { width: height * aspect, height };
+}
+
+/** Scales the renderer so the picture covers the whole view (idempotent: it measures what's there). */
+function cover(r: Il2Cpp.Object): void {
     const cam = mainCamera();
-    if (!media || !cam || !isAlive(bgRenderer)) return;
-    const height = 2 * cam.method<number>("get_orthographicSize").invoke();
-    const width = height * cam.method<number>("get_aspect").invoke();
-    const cover = Math.max(width / (media.width / 100), height / (media.height / 100)) * settings.backgroundScale;
-    bgObject!.method<Il2Cpp.Object>("get_transform").invoke().method("set_localScale").invoke(vector3(cover, cover, 1));
-    bgRenderer!.method("set_color").invoke(color(settings.backgroundTint || "#ffffff"));
+    if (!cam) return;
+    const view = viewSize(cam, r);
+    const ext = readVector3(r.method<Il2Cpp.ValueType>("get_bounds").invoke().field<Il2Cpp.ValueType>("m_Extents").value);
+    if (ext.x <= 1e-6 || ext.y <= 1e-6 || !isFinite(view.width) || view.width <= 0) return;
+    const k = Math.max(view.width / (2 * ext.x), view.height / (2 * ext.y)) * settings.backgroundScale;
+    if (Math.abs(k - 1) < 0.002) return;
+    const t = r.method<Il2Cpp.Object>("get_transform").invoke();
+    const s = readVector3(t.method<Il2Cpp.ValueType>("get_localScale").invoke());
+    t.method("set_localScale").invoke(vector3(s.x * k, s.y * k, s.z));
 }
 
 /** Main thread. Re-applied whenever the game shows a background (menus and levels). */
 function applyBackground(): void {
     if (!settings.background) return restoreGameBackground();
-    if (!ensureBackgroundObject()) return;
-    if (!bgPlayer.current || bgPlayer.current.name !== settings.background.name) {
-        bgPlayer.start(loadMedia(dirs.backgrounds, settings.background, settings.backgroundFps));
-    } else {
-        bgPlayer.show();
-    }
-    fitBackground();
-    bgObject!.method("SetActive").invoke(true);
-    for (const r of gameRenderers()) {
-        if (r.method<boolean>("get_enabled").invoke()) {
-            r.method("set_enabled").invoke(false);
-            hiddenGameRenderers.add(r.handle.toString());
+    const media = mediaFor("background", dirs.backgrounds, settings.background, settings.backgroundFps, applyBackground);
+    if (!media) return; // still loading (or failed): the game keeps its own background
+
+    const targets: Il2Cpp.Object[] = [];
+    for (const g of games()) {
+        const plain = rendererOf(g, "plainBackgroundSpriteRenderer");
+        const custom = rendererOf(g, "customBackgroundSpriteRenderer");
+        // Use whichever background is on screen now; the other one is hidden so they don't overlap.
+        const target = [custom, plain].find(r => r && visible(r)) ?? custom ?? plain;
+        if (!target) continue;
+        for (const r of [plain, custom]) {
+            if (!r) continue;
+            remember(r);
+            if (r !== target) r.method("set_enabled").invoke(false);
         }
+        targets.push(target);
+    }
+    if (targets.length === 0) {
+        loadErrors.set("background", "The game's background wasn't found on this screen. Start a level or go back to the main menu.");
+        return;
+    }
+    loadErrors.delete("background");
+    bgTargets = targets;
+    for (const r of targets) {
+        r.method("set_enabled").invoke(true);
+        try {
+            r.method("set_drawMode").invoke(0); // Simple: no tiling or slicing of our picture
+        } catch {}
+    }
+    if (bgPlayer.current !== media) bgPlayer.start(media);
+    else bgPlayer.show();
+    const tint = color(settings.backgroundTint || "#ffffff");
+    for (const r of targets) {
+        r.method("set_color").invoke(tint);
+        cover(r);
     }
 }
 
 function restoreGameBackground(): void {
     bgPlayer.stop();
-    if (isAlive(bgObject)) bgObject!.method("SetActive").invoke(false);
-    for (const r of gameRenderers()) if (hiddenGameRenderers.has(r.handle.toString())) r.method("set_enabled").invoke(true);
-    hiddenGameRenderers.clear();
+    bgTargets = [];
+    for (const s of saved.values()) {
+        if (!isAlive(s.renderer)) continue;
+        try {
+            const r = s.renderer;
+            r.method("set_sprite").invoke(s.sprite ?? NULL);
+            r.method("set_color").invoke(s.color);
+            if (s.drawMode !== null) r.method("set_drawMode").invoke(s.drawMode);
+            r.method<Il2Cpp.Object>("get_transform").invoke().method("set_localScale").invoke(vector3(s.scale.x, s.scale.y, s.scale.z));
+            r.method("set_enabled").invoke(s.enabled);
+        } catch (e) {
+            log(`Background: couldn't restore the game's background: ${e}`);
+        }
+    }
+    saved.clear();
 }
 
 // ── your character: custom skin image and name colour ──────────────────────────────────────
@@ -160,6 +246,10 @@ function liveViews(): Il2Cpp.Object[] {
 
 function applySkinImage(view: Il2Cpp.Object): void {
     if (!settings.skinImage) return;
+    const media = mediaFor("skinImage", dirs.skins, settings.skinImage, settings.skinImageFps, () => {
+        for (const v of liveViews()) applySkinImage(v);
+    });
+    if (!media) return; // loading: keep the real skin until it's ready
     const character = view.field<Il2Cpp.Object>("character").value;
     if (!isAlive(character)) return;
     const spriteGo = character.field<Il2Cpp.Object>("spriteGo").value;
@@ -173,7 +263,6 @@ function applySkinImage(view: Il2Cpp.Object): void {
 
     // Keep the character's size: scale our picture to the skin's on-screen size.
     const before = readVector3(main.method<Il2Cpp.ValueType>("get_bounds").invoke().field<Il2Cpp.ValueType>("m_Extents").value);
-    const media = loadMedia(dirs.skins, settings.skinImage, settings.skinImageFps);
     main.method("set_sprite").invoke(media.frames[0]);
     const after = readVector3(main.method<Il2Cpp.ValueType>("get_bounds").invoke().field<Il2Cpp.ValueType>("m_Extents").value);
     const ratio = Math.max(before.x, before.y) / Math.max(after.x, after.y, 1e-6);
@@ -267,7 +356,10 @@ function myIcon(): string | null {
 
 function applyPfp(view: Il2Cpp.Object): void {
     if (!settings.pfp) return;
-    const media = loadMedia(dirs.pfp, settings.pfp, settings.pfpFps);
+    const media = mediaFor("pfp", dirs.pfp, settings.pfp, settings.pfpFps, () => {
+        for (const [, v] of myIconViews) if (isAlive(v)) applyPfp(v);
+    });
+    if (!media) return;
     const img = view.field<Il2Cpp.Object>("image").value;
     if (!isAlive(img)) return;
     img.method("set_preserveAspect").invoke(true);
@@ -404,6 +496,9 @@ export function updateLooks(next: LooksSettings): void {
     const prev = settings;
     settings = { ...LOOKS_DEFAULTS, ...next };
     const changed = (k: keyof LooksSettings) => JSON.stringify(prev[k]) !== JSON.stringify(settings[k]);
+    if (changed("background") || changed("backgroundFps")) loadErrors.delete("background");
+    if (changed("skinImage") || changed("skinImageFps")) loadErrors.delete("skinImage");
+    if (changed("pfp") || changed("pfpFps")) loadErrors.delete("pfp");
 
     if (changed("background") || changed("backgroundFps")) bgPlayer.stop();
     if (changed("background") || changed("backgroundFps") || changed("backgroundScale") || changed("backgroundTint")) {
@@ -438,5 +533,8 @@ export function looksMedia() {
 }
 
 export function looksNotes(): string[] {
-    return [bgPlayer.current?.note, skinPlayer.current?.note, pfpPlayer.current?.note].filter((n): n is string => !!n);
+    const notes = [bgPlayer.current?.note, skinPlayer.current?.note, pfpPlayer.current?.note].filter((n): n is string => !!n);
+    for (const name of loadingNow.values()) notes.push(`Loading ${name}…`);
+    for (const message of loadErrors.values()) notes.push(message);
+    return notes;
 }

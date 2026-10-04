@@ -5,6 +5,7 @@ import { ensureDir } from "./fsutil.js";
 import { serve, Request, Response } from "./http.js";
 import { iconCatalog, LOOKS_DEFAULTS, LooksSettings, looksMedia, looksNotes, startLooks, updateLooks } from "./looks.js";
 import { modsStatus, reloadMods, SavedModState, setFeature, setFeatureValue, setModEnabled, startMods, hasFeature, featureEnabled } from "./mods.js";
+import { setCrashMarker, takeCrashMarker } from "./media.js";
 import { MUSIC_DEFAULTS, MusicSettings, musicStatus, pause, play, skip, startMusic, toggle as toggleMusic, updateMusic } from "./music.js";
 import { replaceWithConstant, revertTarget } from "./native.js";
 import { clearKey, DEFAULT_MENU_KEY, KeyBinding, keyState, listenForKey, revealFolder, setOverlaySize, startOverlay, toggleFromAgent } from "./overlay.js";
@@ -13,7 +14,7 @@ import { startThumbs, thumbnail, ThumbKind } from "./thumbs.js";
 import { PAGE } from "./ui.js";
 import { catalog, getExtraTrails, overrides, setExtraTrails, setOverride, Slot, SLOTS, traceEquipFlow } from "./wardrobe.js";
 
-const VERSION = "0.7.1";
+const VERSION = "0.7.2";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)
@@ -306,6 +307,7 @@ async function runAction(action: string): Promise<void> {
 // ── menu API ────────────────────────────────────────────────────────────────────────────
 
 let gameInfo = { unity: "?", game: "?" };
+const startupNotes: string[] = [];
 
 function state() {
     return {
@@ -320,7 +322,7 @@ function state() {
         keys: { ...keyState(), actions: ACTIONS },
         music: musicStatus(),
         mods: modsStatus(),
-        notes: looksNotes(),
+        notes: [...startupNotes, ...looksNotes()],
         unlock: { status: unlockStatus, skipped: lastScan?.skipped ?? [] },
     };
 }
@@ -527,7 +529,22 @@ Il2Cpp.perform(async () => {
         }
         if (settings.extraTrails?.length) setExtraTrails(settings.extraTrails, log);
     });
-    step("looks", () => startLooks(settings.looks, FOLDERS, log));
+    step("looks", () => {
+        // If the game closed while one of your pictures was loading, don't load it again.
+        setCrashMarker(`${DATA_DIR}/.loading`);
+        const crashed = takeCrashMarker();
+        if (crashed) {
+            const L = settings.looks;
+            const hit = (["background", "skinImage", "pfp"] as const).filter(k => L[k]?.name === crashed);
+            for (const k of hit) L[k] = null;
+            if (hit.length) {
+                saveSettings();
+                startupNotes.push(`The game closed while loading ${crashed}, so it was switched off. Try a smaller picture or a shorter GIF.`);
+                log(`Looks: ${crashed} was loading when the game last closed; switched it off`);
+            }
+        }
+        startLooks(settings.looks, FOLDERS, log);
+    });
     step("thumbnails", () => startThumbs(`${DATA_DIR}/.thumbnails`, log));
     step("music", () => startMusic(FOLDERS.music, settings.music, log));
     step("mods", () =>

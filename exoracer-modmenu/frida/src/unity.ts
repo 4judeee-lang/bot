@@ -81,17 +81,84 @@ function spriteFromTexture(tex: Il2Cpp.Object, w: number, h: number): Il2Cpp.Obj
     return keep(sprite);
 }
 
-/** A PNG/JPG file as a Sprite, with its pixel size. */
-export function spriteFromImageFile(path: string): { sprite: Il2Cpp.Object; width: number; height: number } {
-    const tex = core("UnityEngine.Texture2D").alloc();
-    tex.method(".ctor", 2).invoke(2, 2);
+/** Width and height from a PNG or JPEG header, without decoding it. */
+export function imageSize(bytes: ArrayBuffer): { width: number; height: number } | null {
+    const b = new Uint8Array(bytes);
+    if (b.length > 24 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) {
+        const u32 = (i: number) => ((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0;
+        return { width: u32(16), height: u32(20) };
+    }
+    if (b.length > 4 && b[0] === 0xff && b[1] === 0xd8) {
+        let p = 2;
+        while (p + 9 < b.length) {
+            if (b[p] !== 0xff) {
+                p++;
+                continue;
+            }
+            const marker = b[p + 1];
+            const len = (b[p + 2] << 8) | b[p + 3];
+            // SOF0..SOF15, except DHT (C4), JPG (C8) and DAC (CC)
+            if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+                return { height: (b[p + 5] << 8) | b[p + 6], width: (b[p + 7] << 8) | b[p + 8] };
+            }
+            p += 2 + len;
+        }
+    }
+    return null;
+}
+
+export const MAX_SOURCE_SIDE = 8192;
+
+/**
+ * Main thread. Shrinks a texture to at most `maxSide` on its longest side on the GPU (the original
+ * is destroyed). The result can't be read back by the CPU, so it costs no extra memory.
+ */
+export function fitTexture(tex: Il2Cpp.Object, maxSide: number): { tex: Il2Cpp.Object; width: number; height: number } {
+    const w = tex.method<number>("get_width").invoke();
+    const h = tex.method<number>("get_height").invoke();
+    if (Math.max(w, h) <= maxSide) return { tex, width: w, height: h };
+    const k = maxSide / Math.max(w, h);
+    const nw = Math.max(1, Math.round(w * k));
+    const nh = Math.max(1, Math.round(h * k));
+    const rtClass = core("UnityEngine.RenderTexture");
+    const rt = rtClass.method<Il2Cpp.Object>("GetTemporary", 2).overload("System.Int32", "System.Int32").invoke(nw, nh);
+    const previous = rtClass.method<Il2Cpp.Object>("get_active").invoke();
+    try {
+        core("UnityEngine.Graphics").method("Blit", 2).overload("UnityEngine.Texture", "UnityEngine.RenderTexture").invoke(tex, rt);
+        rtClass.method("set_active").invoke(rt);
+        const out = core("UnityEngine.Texture2D").alloc();
+        out.method(".ctor", 2).invoke(nw, nh);
+        const rect = struct(core("UnityEngine.Rect"), { m_XMin: 0, m_YMin: 0, m_Width: nw, m_Height: nh });
+        out.method("ReadPixels", 3).overload("UnityEngine.Rect", "System.Int32", "System.Int32").invoke(rect, 0, 0);
+        out.method("Apply", 2).invoke(true, true);
+        return { tex: out, width: nw, height: nh };
+    } finally {
+        rtClass.method("set_active").invoke(previous);
+        rtClass.method("ReleaseTemporary").invoke(rt);
+        core("UnityEngine.Object").method("Destroy", 1).invoke(tex);
+    }
+}
+
+/** Main thread. PNG/JPG bytes as a Sprite no bigger than `maxSide`, with its pixel size. */
+export function spriteFromImageBytes(bytes: ArrayBuffer, name: string, maxSide: number): { sprite: Il2Cpp.Object; width: number; height: number } {
+    const size = imageSize(bytes);
+    if (!size) throw new Error(`${name} isn't a PNG or JPG file (it may just be named like one)`);
+    if (size.width > MAX_SOURCE_SIDE || size.height > MAX_SOURCE_SIDE) throw new Error(`${name} is too big (${size.width}×${size.height}); make it ${MAX_SOURCE_SIDE} pixels or smaller`);
     const imageConversion = uclass("UnityEngine.ImageConversionModule", "UnityEngine.ImageConversion");
     if (!imageConversion) throw new Error("this build of the game can't decode PNG/JPG files; use a GIF instead (a one-frame GIF works for still pictures)");
-    const ok = imageConversion.method<boolean>("LoadImage", 2).invoke(tex, byteArray(File.readAllBytes(path)));
-    if (!ok) throw new Error(`couldn't read ${path.split("/").pop()} as an image (use PNG or JPG)`);
-    const width = tex.method<number>("get_width").invoke();
-    const height = tex.method<number>("get_height").invoke();
-    return { sprite: spriteFromTexture(tex, width, height), width, height };
+    const tex = core("UnityEngine.Texture2D").alloc();
+    tex.method(".ctor", 2).invoke(2, 2);
+    const load3 = imageConversion.tryMethod<boolean>("LoadImage", 3);
+    // markNonReadable: the pixels live on the GPU only, halving the memory a picture costs.
+    const ok = load3 ? load3.invoke(tex, byteArray(bytes), true) : imageConversion.method<boolean>("LoadImage", 2).invoke(tex, byteArray(bytes));
+    if (!ok) throw new Error(`couldn't read ${name} as an image (use PNG or JPG)`);
+    const fit = fitTexture(tex, maxSide);
+    return { sprite: spriteFromTexture(fit.tex, fit.width, fit.height), width: fit.width, height: fit.height };
+}
+
+/** A PNG/JPG file as a Sprite, with its pixel size. */
+export function spriteFromImageFile(path: string, maxSide = 2560): { sprite: Il2Cpp.Object; width: number; height: number } {
+    return spriteFromImageBytes(File.readAllBytes(path), path.split("/").pop() ?? path, maxSide);
 }
 
 /** RGBA pixels (top row first) as a Sprite. */
@@ -108,7 +175,7 @@ export function spriteFromRgba(rgba: Uint8Array, width: number, height: number):
         base.add((height - 1 - y) * row).writeByteArray(src.buffer.slice(src.byteOffset, src.byteOffset + row) as ArrayBuffer);
     }
     tex.method("SetPixels32", 1).invoke(pixels);
-    tex.method("Apply", 0).invoke();
+    tex.method("Apply", 2).invoke(true, true); // upload, then drop the CPU copy
     return spriteFromTexture(tex, width, height);
 }
 

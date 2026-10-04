@@ -1,13 +1,13 @@
 import "frida-il2cpp-bridge";
 import { extension, listDirs, listFiles } from "./fsutil.js";
 import { decodeGif } from "./gif.js";
-import { spriteFromImageFile, spriteFromRgba } from "./unity.js";
+import { shrink } from "./png.js";
+import { spriteFromImageBytes, spriteFromRgba } from "./unity.js";
 
 // Turns what you drop in a folder into sprites: a PNG/JPG, an animated GIF, or a sub-folder of
 // frames (played in name order). Everything is cached, so switching back costs nothing.
 
 export const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg"];
-const MEMORY_BUDGET = 256 * 1024 * 1024; // decoded pixels per animation
 
 export interface Media {
     name: string;
@@ -43,45 +43,155 @@ export function unusableMedia(dir: string): string[] {
     });
 }
 
-const cache = new Map<string, Media>();
+// Loading never happens on the game's main thread all at once: files are read and GIFs decoded on
+// the agent thread, pictures are shrunk to a sensible size, and textures are created a few per frame.
+// Animations stay under a memory budget. A marker file is written while a picture is being turned
+// into textures, so if the game ever dies doing it, the next launch can skip that picture.
 
-/** Must run on Unity's main thread. `fps` is used for frame folders (GIFs carry their own timing). */
-export function loadMedia(dir: string, entry: MediaEntry, fps: number): Media {
-    const key = `${dir}/${entry.name}@${entry.kind === "frames" ? fps : ""}`;
-    const cached = cache.get(key);
-    if (cached) return cached;
+const ANIMATION_BUDGET = 128 * 1024 * 1024; // GPU bytes per animation
+const MAX_FILE_BYTES = 80 * 1024 * 1024;
+const MAX_ANIMATION_SIDE = 1280;
+const cache = new Map<string, Media>();
+const loading = new Map<string, Promise<Media>>();
+let markerPath = "";
+
+export function setCrashMarker(path: string): void {
+    markerPath = path;
+}
+
+/** What was loading when the game last closed unexpectedly, if anything (and clears it). */
+export function takeCrashMarker(): string | null {
+    if (!markerPath) return null;
+    try {
+        const name = File.readAllText(markerPath).trim();
+        clearMarker();
+        return name || null;
+    } catch {
+        return null;
+    }
+}
+
+function setMarker(name: string): void {
+    try {
+        const f = new File(markerPath, "w");
+        f.write(name);
+        f.close();
+    } catch {}
+}
+
+function clearMarker(): void {
+    try {
+        const f = new File(markerPath, "w"); // empty = nothing loading
+        f.close();
+    } catch {}
+}
+
+function key(dir: string, entry: MediaEntry, fps: number, maxSide: number): string {
+    return `${dir}/${entry.name}@${entry.kind === "frames" ? fps : ""}@${maxSide}`;
+}
+
+/** Already loaded, or null. Safe anywhere. */
+export function cachedMedia(dir: string, entry: MediaEntry, fps: number, maxSide: number): Media | null {
+    return cache.get(key(dir, entry, fps, maxSide)) ?? null;
+}
+
+/** Loads a picture, GIF or frame folder as sprites without stalling the game. Call from the agent thread. */
+export function prepareMedia(dir: string, entry: MediaEntry, fps: number, maxSide: number): Promise<Media> {
+    const k = key(dir, entry, fps, maxSide);
+    const done = cache.get(k);
+    if (done) return Promise.resolve(done);
+    let p = loading.get(k);
+    if (!p) {
+        p = build(dir, entry, fps, maxSide)
+            .then(m => {
+                cache.set(k, m);
+                return m;
+            })
+            .finally(() => {
+                loading.delete(k);
+                clearMarker();
+            });
+        loading.set(k, p);
+    }
+    return p;
+}
+
+function readFile(path: string, name: string): ArrayBuffer {
+    const bytes = File.readAllBytes(path);
+    if (bytes.byteLength > MAX_FILE_BYTES) throw new Error(`${name} is too big (${Math.round(bytes.byteLength / 1048576)} MB); keep files under 80 MB`);
+    return bytes;
+}
+
+const onMain = <T>(fn: () => T) => Il2Cpp.perform(fn, "main");
+
+async function build(dir: string, entry: MediaEntry, fps: number, maxSide: number): Promise<Media> {
     const path = `${dir}/${entry.name}`;
-    let media: Media;
+    const animSide = Math.min(maxSide, MAX_ANIMATION_SIDE);
+
     if (entry.kind === "image") {
-        const s = spriteFromImageFile(path);
-        media = { name: entry.name, frames: [s.sprite], delaysMs: [0], width: s.width, height: s.height };
-    } else if (entry.kind === "gif") {
-        const peek = decodeGif(File.readAllBytes(path), 1);
-        const perFrame = peek.width * peek.height * 4;
-        const maxFrames = Math.max(1, Math.min(240, Math.floor(MEMORY_BUDGET / perFrame)));
-        const gif = decodeGif(File.readAllBytes(path), maxFrames);
-        media = {
+        const bytes = readFile(path, entry.name);
+        setMarker(entry.name);
+        const s = await onMain(() => spriteFromImageBytes(bytes, entry.name, maxSide));
+        return { name: entry.name, frames: [s.sprite], delaysMs: [0], width: s.width, height: s.height };
+    }
+
+    if (entry.kind === "gif") {
+        const bytes = readFile(path, entry.name);
+        const head = new Uint8Array(bytes, 0, Math.min(10, bytes.byteLength));
+        if (head.length < 10) throw new Error(`${entry.name} isn't a GIF`);
+        const w = head[6] | (head[7] << 8);
+        const h = head[8] | (head[9] << 8);
+        if (!w || !h || w > 8192 || h > 8192) throw new Error(`${entry.name} has an unusable size (${w}×${h})`);
+        const k = Math.min(1, animSide / Math.max(w, h));
+        const perFrame = Math.max(1, Math.round(w * k)) * Math.max(1, Math.round(h * k)) * 4;
+        const maxFrames = Math.max(1, Math.min(240, Math.floor(ANIMATION_BUDGET / perFrame)));
+        const shrunk: { rgba: Uint8Array | null; width: number; height: number; delayMs: number }[] = [];
+        decodeGif(bytes, maxFrames, (canvas, delayMs) => {
+            const s = shrink(canvas, w, h, animSide);
+            shrunk.push({ rgba: s.rgba === canvas ? canvas.slice() : s.rgba, width: s.width, height: s.height, delayMs });
+        });
+        setMarker(entry.name);
+        const frames: Il2Cpp.Object[] = [];
+        for (let i = 0; i < shrunk.length; i += 4) {
+            const batch = shrunk.slice(i, i + 4);
+            frames.push(...(await onMain(() => batch.map(f => spriteFromRgba(f.rgba!, f.width, f.height)))));
+            for (const f of batch) f.rgba = null; // let the JS copy go
+        }
+        return {
             name: entry.name,
-            frames: gif.frames.map(f => spriteFromRgba(f.rgba, gif.width, gif.height)),
-            delaysMs: gif.frames.map(f => Math.max(20, f.delayMs)),
-            width: gif.width,
-            height: gif.height,
-            note: gif.frames.length === maxFrames && maxFrames < 240 ? `large GIF: only the first ${maxFrames} frames are used` : undefined,
-        };
-    } else {
-        const files = listFiles(path).filter(n => IMAGE_EXTENSIONS.includes(extension(n)));
-        if (files.length === 0) throw new Error(`the folder "${entry.name}" has no PNG/JPG frames`);
-        const loaded = files.slice(0, 240).map(n => spriteFromImageFile(`${path}/${n}`));
-        media = {
-            name: entry.name,
-            frames: loaded.map(s => s.sprite),
-            delaysMs: loaded.map(() => Math.round(1000 / Math.max(1, Math.min(60, fps)))),
-            width: loaded[0].width,
-            height: loaded[0].height,
+            frames,
+            delaysMs: shrunk.map(f => Math.max(20, f.delayMs)),
+            width: shrunk[0].width,
+            height: shrunk[0].height,
+            note: shrunk.length === maxFrames && maxFrames < 240 ? `${entry.name} is a long GIF: only the first ${maxFrames} frames are used` : undefined,
         };
     }
-    cache.set(key, media);
-    return media;
+
+    const files = listFiles(path).filter(n => IMAGE_EXTENSIONS.includes(extension(n)));
+    if (files.length === 0) throw new Error(`the folder "${entry.name}" has no PNG/JPG frames`);
+    const frames: Il2Cpp.Object[] = [];
+    let width = 0;
+    let height = 0;
+    let limit = Math.min(240, files.length);
+    for (let i = 0; i < limit; i++) {
+        const bytes = readFile(`${path}/${files[i]}`, files[i]);
+        setMarker(entry.name);
+        const s = await onMain(() => spriteFromImageBytes(bytes, files[i], animSide));
+        frames.push(s.sprite);
+        if (i === 0) {
+            width = s.width;
+            height = s.height;
+            limit = Math.min(limit, Math.max(1, Math.floor(ANIMATION_BUDGET / (width * height * 4))));
+        }
+    }
+    return {
+        name: entry.name,
+        frames,
+        delaysMs: frames.map(() => Math.round(1000 / Math.max(1, Math.min(60, fps)))),
+        width,
+        height,
+        note: limit < Math.min(240, files.length) ? `"${entry.name}" is big: only the first ${limit} frames are used` : undefined,
+    };
 }
 
 /**
