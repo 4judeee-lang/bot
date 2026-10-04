@@ -13,7 +13,7 @@ import { startThumbs, thumbnail, ThumbKind } from "./thumbs.js";
 import { PAGE } from "./ui.js";
 import { catalog, getExtraTrails, overrides, setExtraTrails, setOverride, Slot, SLOTS, traceEquipFlow } from "./wardrobe.js";
 
-const VERSION = "0.7.0";
+const VERSION = "0.7.1";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)
@@ -325,23 +325,38 @@ function state() {
     };
 }
 
-// What you really have equipped, for the menu's "wearing" strip (refreshed at most every 3 s).
+// What you really have equipped, for the menu's "wearing" strip. Read on the main thread in the
+// background at most every 3 s, so asking for the state never waits on the game.
 let wearingCache: { at: number; value: Record<string, string | null> } = { at: 0, value: {} };
+let wearingBusy = false;
 function wearing(): Record<string, string | null> {
-    if (Date.now() - wearingCache.at < 3000) return wearingCache.value;
     const w = overrides();
-    const real = (getter: string) => {
-        try {
-            return equipped(getter);
-        } catch {
-            return null;
-        }
-    };
-    wearingCache = {
-        at: Date.now(),
-        value: { skin: w.skin ?? real("get_Skin"), gliderSkin: w.gliderSkin ?? real("get_GliderSkin"), hookSkin: w.hookSkin ?? real("get_HookSkin"), trail: w.trail ?? real("get_Trail") },
-    };
-    return wearingCache.value;
+    if (Date.now() - wearingCache.at > 3000 && !wearingBusy) {
+        wearingBusy = true;
+        withTimeout(Il2Cpp.perform(() => ({ skin: equipped("get_Skin"), gliderSkin: equipped("get_GliderSkin"), hookSkin: equipped("get_HookSkin"), trail: equipped("get_Trail") }), "main"), 5000, "reading your outfit")
+            .then(value => (wearingCache = { at: Date.now(), value }))
+            .catch(() => (wearingCache = { at: Date.now(), value: wearingCache.value }))
+            .finally(() => (wearingBusy = false));
+    }
+    const real = wearingCache.value;
+    return { skin: w.skin ?? real.skin ?? null, gliderSkin: w.gliderSkin ?? real.gliderSkin ?? null, hookSkin: w.hookSkin ?? real.hookSkin ?? null, trail: w.trail ?? real.trail ?? null };
+}
+
+/** Rejects if `p` takes longer than `ms`, so a busy or paused game never hangs the menu. */
+function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`The game took too long ${what}. Try again in a moment.`)), ms);
+        p.then(
+            v => {
+                clearTimeout(timer);
+                resolve(v);
+            },
+            e => {
+                clearTimeout(timer);
+                reject(e);
+            },
+        );
+    });
 }
 
 function json(body: unknown, status = 200): Response {
@@ -366,8 +381,17 @@ async function route(req: Request): Promise<Response> {
         });
         return png ? { type: "image/png", body: "", bytes: png, cache: 86400 } : { status: 404, body: "no picture" };
     }
-    if (req.method === "GET" && req.path === "/api/wardrobe") return json(await Il2Cpp.perform(() => catalog(log)));
-    if (req.method === "GET" && req.path === "/api/media") return json({ ...looksMedia(), icons: await Il2Cpp.perform(() => iconCatalog()) });
+    if (req.method === "GET" && req.path === "/api/wardrobe") return json(await withTimeout(Il2Cpp.perform(() => catalog(log)), 10000, "listing the cosmetics"));
+    // Just your files: never waits on the game, so the pickers always show what's in the folders.
+    if (req.method === "GET" && req.path === "/api/media") return json({ ...looksMedia(), dirs: FOLDERS });
+    if (req.method === "GET" && req.path === "/api/icons") {
+        try {
+            return json({ icons: await withTimeout(Il2Cpp.perform(() => iconCatalog()), 8000, "listing the profile icons") });
+        } catch (e) {
+            log(`Profile icons: ${e}`);
+            return json({ icons: [], error: String((e as Error).message ?? e) });
+        }
+    }
 
     if (req.method !== "POST") return json({ error: "not found" }, 404);
     // Browsers can't add this header to cross-site requests without a CORS preflight we never answer,

@@ -35,8 +35,11 @@ const media = {
     backgrounds: [{ name: "space.gif", kind: "gif" }, { name: "city.png", kind: "image" }, { name: "rain", kind: "frames" }],
     skins: [{ name: "me.png", kind: "image" }],
     pfp: [{ name: "cat.gif", kind: "gif" }],
-    icons: ["icon_cat", "icon_star", "icon_bolt"],
+    unusable: { backgrounds: ["wallpaper.pdf", "photo.heic"], skins: [], pfp: [] },
+    dirs: { backgrounds: "/Users/you/Library/Application Support/Steam/steamapps/common/Exoracer/ExoMenu/backgrounds", skins: "/x/skins", pfp: "/x/profile-pictures" },
 };
+const icons = ["icon_cat", "icon_star", "icon_bolt"];
+let mediaFails = 1; // the first /api/media fails, to check the Retry path
 
 // A coloured disc per id, so tiles show something; "ninja" is missing to exercise the fallback.
 function fakeThumb(id: string): ArrayBuffer {
@@ -56,7 +59,8 @@ serve(7777, req => {
     if (req.path === "/") return { type: "text/html; charset=utf-8", body: PAGE };
     if (req.path === "/api/state") return ok(s);
     if (req.method === "GET" && req.path === "/api/wardrobe") return ok(wardrobe);
-    if (req.path === "/api/media") return ok(media);
+    if (req.path === "/api/media") return mediaFails-- > 0 ? { status: 500, type: "application/json", body: JSON.stringify({ error: "test failure" }) } : ok(media);
+    if (req.path === "/api/icons") return ok({ icons });
     if (req.path.startsWith("/thumb/")) {
         const id = decodeURIComponent(req.path.split("/")[3].replace(/\.png$/, ""));
         if (id === "ninja") return { status: 404, body: "" };

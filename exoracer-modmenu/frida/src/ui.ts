@@ -238,7 +238,9 @@ export const PAGE = `<!doctype html>
   }
   function api(path, body) {
     var opts = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json", "X-ExoMenu": "1" }, body: JSON.stringify(body) };
-    return fetch(path, opts).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ("HTTP " + r.status)); return j; }); });
+    var req = fetch(path, opts).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ("HTTP " + r.status)); return j; }); });
+    var late = new Promise(function (_, reject) { setTimeout(function () { reject(new Error("The game didn't answer in time. Try again.")); }, 12000); });
+    return Promise.race([req, late]);
   }
   function accept(s) { var j = JSON.stringify(s); if (j !== stateJson) { stateJson = j; state = s; render(); } }
   // Optimistic: change the local state now, re-render, then let the server's answer win.
@@ -257,7 +259,16 @@ export const PAGE = `<!doctype html>
     if (wardrobeLoading) return; wardrobeLoading = true;
     api("/api/wardrobe").then(function (w) { wardrobe = w; }).catch(function (e) { wardrobe = { error: e.message }; }).then(function () { wardrobeLoading = false; lastView = ""; render(); });
   }
-  function loadMedia() { api("/api/media").then(function (m) { media = m; lastView = ""; render(); }).catch(function (e) { toast(e.message, true); }); }
+  var mediaLoading = false, icons = null, iconsLoading = false;
+  function loadMedia() {
+    if (mediaLoading) return; mediaLoading = true;
+    api("/api/media").then(function (m) { media = m; }).catch(function (e) { media = { error: e.message }; }).then(function () { mediaLoading = false; lastView = ""; render(); });
+  }
+  function loadIcons() {
+    if (iconsLoading) return; iconsLoading = true;
+    api("/api/icons").then(function (r) { icons = r; }).catch(function (e) { icons = { icons: [], error: e.message }; }).then(function () { iconsLoading = false; lastView = ""; render(); });
+  }
+  function failed(what, msg, action) { return card("Couldn't load " + what, esc(msg), "<button class='btn small' data-action='" + action + "'>" + icon("refresh") + "Retry</button>"); }
 
   // ── building blocks ────────────────────────────────────────────────────────────────
   function sw(on, attrs) { return "<button class='switch" + (on ? " on" : "") + "' " + attrs + " role='switch' aria-checked='" + !!on + "'></button>"; }
@@ -273,7 +284,7 @@ export const PAGE = `<!doctype html>
   function shown(key, s) { var q = (filters[key] || "").toLowerCase(); return !q || s.toLowerCase().indexOf(q) >= 0; }
   function thumb(kind, id, size) {
     var st = size ? " style='width:" + size + "px;height:" + size + "px'" : "";
-    return "<div class='thumb' data-initial='" + esc((id || "?").charAt(0).toUpperCase()) + "'" + st + "><img loading='lazy' decoding='async' alt='' src='/thumb/" + kind + "/" + encodeURIComponent(id) + ".png' data-thumb='1'></div>";
+    return "<div class='thumb' data-initial='" + esc((id || "?").charAt(0).toUpperCase()) + "'" + st + "><img decoding='async' alt='' data-src='/thumb/" + kind + "/" + encodeURIComponent(id) + ".png'></div>";
   }
   function tile(kind, id, attrs, on, extra) {
     return "<button class='tile" + (on ? " on" : "") + "' " + attrs + " data-name='" + esc(id.toLowerCase()) + "' title='" + esc(id) + "'" + (shown(kind === "trail" && attrs.indexOf("data-extra") === 0 ? "extra" : kind, id) ? "" : " hidden") + ">" + (extra || "") + thumb(kind, id) + "<span class='name'>" + esc(id) + "</span></button>";
@@ -303,7 +314,7 @@ export const PAGE = `<!doctype html>
     var own = state.own !== "Off.";
     var html = card("Own every skin", "Every skin, glider, hook and trail shows as owned in the game's customization, and you can equip them there. Only you see it. Nothing is sent to the server while it's on.", sw(own, "data-toggle='ownEverything'"));
     if (!wardrobe) { if (!wardrobeLoading) loadWardrobe(); return html + "<div class='skeleton'></div><div class='skeleton'></div>"; }
-    if (wardrobe.error) return html + "<div class='empty'>Couldn't read the cosmetics: " + esc(wardrobe.error) + "</div>";
+    if (wardrobe.error) return html + failed("the cosmetics", wardrobe.error, "refresh-wardrobe");
     var worn = state.wardrobe || {};
     SLOTS.forEach(function (p) {
       var slot = p[0], items = wardrobe.items[slot] || [], owned = wardrobe.owned[slot] || [];
@@ -317,12 +328,13 @@ export const PAGE = `<!doctype html>
     var extra = state.extraTrails || [];
     var html = card("Multiple trails", "Exoracer gives you two trails. Stack up to " + MAX_EXTRA_TRAILS + " more on your character (your screen only), then start a level. Numbers show the stacking order.", extra.length ? "<button class='btn ghost small' data-extra=''>Clear all</button>" : "");
     if (!wardrobe) { if (!wardrobeLoading) loadWardrobe(); return html + "<div class='skeleton'></div>"; }
-    if (wardrobe.error) return html + "<div class='empty'>" + esc(wardrobe.error) + "</div>";
+    if (wardrobe.error) return html + failed("the trails", wardrobe.error, "refresh-wardrobe");
     var tiles = (wardrobe.items.trail || []).map(function (id) { var n = extra.indexOf(id); return tile("trail", id, "data-extra='" + esc(id) + "'", n >= 0, n >= 0 ? "<span class='num'>" + (n + 1) + "</span>" : ""); }).join("");
     return html + card("Extra trails <span class='tag'>" + extra.length + " / " + MAX_EXTRA_TRAILS + "</span>", extra.length ? "Stacked: <b>" + extra.map(esc).join(", ") + "</b>" : "None picked yet.", filterBox("extra"), "<div class='tiles' data-tiles='extra'>" + tiles + "</div>");
   }
 
   function mediaPicker(kind, list, current) {
+    if (!(list || []).length && !current) return "<div class='empty' style='padding:18px 0'>Nothing here yet. Click <b>Open folder</b>, drop a picture in, then <b>Refresh</b>.</div>";
     var none = "<button class='media" + (!current ? " on" : "") + "' data-media='" + kind + "' data-name=''><b>None</b><span class='hint'>The game's own</span></button>";
     return "<div class='medias'>" + none + (list || []).map(function (m) {
       var on = current && current.name === m.name;
@@ -331,14 +343,20 @@ export const PAGE = `<!doctype html>
     }).join("") + "</div>";
   }
   function needMedia() { if (!media) { loadMedia(); return true; } return false; }
+  function unusable(which) {
+    var list = media.unusable && media.unusable[which] || [];
+    return list.length ? "<div class='hint' style='margin-top:12px'>Can't use " + list.map(esc).join(", ") + ". Use PNG, JPG or GIF (PDF/HEIC/WebP: open in Preview, File → Export as PNG).</div>" : "";
+  }
+  function where(which) { return media.dirs && media.dirs[which] ? "<div class='hint' style='margin-top:10px'>Folder: <code>" + esc(media.dirs[which]) + "</code></div>" : ""; }
 
   function characterTab() {
     var L = state.settings.looks;
     if (needMedia()) return "<div class='skeleton'></div><div class='skeleton'></div>";
+    if (media.error) return failed("your files", media.error, "refresh-media");
     var nameBody = "<div class='row'><input type='color' id='name-color' value='" + esc(L.nameColor || "#ffffff") + "' aria-label='Name colour'><button class='btn small' data-action='name-color'>Use this colour</button><button class='btn ghost small' data-action='name-reset'>Reset</button></div>" +
       "<div class='row' style='margin-top:12px'><div class='grow desc' style='margin:0'>Rainbow (cycles through every colour)</div>" + sw(L.nameRainbow, "data-look-flag='nameRainbow'") + "</div>";
     var html = card("Name colour", "Colours the name above your character in levels.", "", nameBody);
-    var skinBody = mediaPicker("skinImage", media.skins, L.skinImage) + slider("Size", "skinImageScale", L.skinImageScale, 0.5, 2, 0.05, true) + (L.skinImage && L.skinImage.kind === "frames" ? slider("Frames per second", "skinImageFps", L.skinImageFps, 1, 30, 1) : "");
+    var skinBody = mediaPicker("skinImage", media.skins, L.skinImage) + unusable("skins") + where("skins") + slider("Size", "skinImageScale", L.skinImageScale, 0.5, 2, 0.05, true) + (L.skinImage && L.skinImage.kind === "frames" ? slider("Frames per second", "skinImageFps", L.skinImageFps, 1, 30, 1) : "");
     html += card("Custom skin image <span class='tag warn'>experimental</span>", "Wear your own picture or GIF as your skin (your screen only). PNG, JPG, GIF or a folder of frames. PDFs won't work: export the page as PNG first.", folderBtn("skins") + refreshBtn("refresh-media"), skinBody);
     return html;
   }
@@ -346,7 +364,8 @@ export const PAGE = `<!doctype html>
   function backgroundsTab() {
     var L = state.settings.looks;
     if (needMedia()) return "<div class='skeleton'></div>";
-    var body = mediaPicker("background", media.backgrounds, L.background) + slider("Zoom", "backgroundScale", L.backgroundScale, 1, 2.5, 0.05, true) + (L.background && L.background.kind === "frames" ? slider("Frames per second", "backgroundFps", L.backgroundFps, 1, 30, 1) : "") +
+    if (media.error) return failed("your files", media.error, "refresh-media");
+    var body = mediaPicker("background", media.backgrounds, L.background) + unusable("backgrounds") + where("backgrounds") + slider("Zoom", "backgroundScale", L.backgroundScale, 1, 2.5, 0.05, true) + (L.background && L.background.kind === "frames" ? slider("Frames per second", "backgroundFps", L.backgroundFps, 1, 30, 1) : "") +
       "<div class='field'><label for='bg-tint'>Tint</label><div class='row'><input type='color' id='bg-tint' value='" + esc(L.backgroundTint || "#ffffff") + "'><button class='btn ghost small' data-action='bg-tint'>Apply</button><button class='btn ghost small' data-action='bg-tint-reset'>None</button></div><span></span></div>";
     return card("Your background", "Replaces the game's background in menus and levels. Still images, animated GIFs, or a folder of numbered frames (frame1.png, frame2.png…).", folderBtn("backgrounds") + refreshBtn("refresh-media"), body) + (state.notes.length ? card("Note", state.notes.map(esc).join("<br>")) : "");
   }
@@ -354,11 +373,13 @@ export const PAGE = `<!doctype html>
   function profileTab() {
     var L = state.settings.looks;
     if (needMedia()) return "<div class='skeleton'></div>";
-    var body = mediaPicker("pfp", media.pfp, L.pfp) + (L.pfp && L.pfp.kind === "frames" ? slider("Frames per second", "pfpFps", L.pfpFps, 1, 30, 1) : "");
-    var icons = media.icons || [];
-    var tiles = "<button class='tile" + (!L.pfpIcon ? " on" : "") + "' data-icon=''><div class='thumb' data-initial='★'></div><span class='name'>Your own</span></button>" + icons.map(function (id) { return tile("icon", id, "data-icon='" + esc(id) + "'", L.pfpIcon === id); }).join("");
+    if (media.error) return failed("your files", media.error, "refresh-media");
+    var body = mediaPicker("pfp", media.pfp, L.pfp) + unusable("pfp") + where("pfp") + (L.pfp && L.pfp.kind === "frames" ? slider("Frames per second", "pfpFps", L.pfpFps, 1, 30, 1) : "");
+    if (!icons && !iconsLoading) loadIcons();
+    var iconList = icons ? icons.icons : [];
+    var tiles = "<button class='tile" + (!L.pfpIcon ? " on" : "") + "' data-icon=''><div class='thumb' data-initial='★'></div><span class='name'>Your own</span></button>" + iconList.map(function (id) { return tile("icon", id, "data-icon='" + esc(id) + "'", L.pfpIcon === id); }).join("");
     return card("Profile picture", "Use your own picture or animated GIF wherever the game shows your profile picture (your screen only). Reopen your profile after picking.", folderBtn("pfp") + refreshBtn("refresh-media"), body) +
-      card("Built-in profile icons <span class='tag'>" + icons.length + "</span>", "Show any of the game's icons as yours. A custom picture above takes priority.", filterBox("icon"), icons.length ? "<div class='tiles' data-tiles='icon'>" + tiles + "</div>" : "<div class='hint'>None found yet. Open the profile icon picker in the game once, then refresh.</div>");
+      card("Built-in profile icons <span class='tag'>" + iconList.length + "</span>", "Show any of the game's icons as yours. A custom picture above takes priority.", filterBox("icon") + "<button class='btn ghost small' data-action='refresh-icons'>" + icon("refresh") + "Refresh</button>", !icons ? "<div class='skeleton'></div>" : icons.error ? "<div class='hint'>" + esc(icons.error) + "</div>" : iconList.length ? "<div class='tiles' data-tiles='icon'>" + tiles + "</div>" : "<div class='hint'>None found yet. Open the profile icon picker in the game once, then refresh.</div>");
   }
 
   function musicTab() {
@@ -467,8 +488,9 @@ export const PAGE = `<!doctype html>
     if (!state) { $("content").innerHTML = "<div class='skeleton'></div><div class='skeleton'></div>"; return; }
     var a = document.activeElement;
     if (a && a.dataset && (a.dataset.filter !== undefined || a.id === "fps-target" || a.dataset.modval || a.type === "range" || a.type === "color" || a.type === "text")) return; // don't clobber what you're editing
-    var q = $("search").value.trim().toLowerCase();
-    var html = q ? searchAll(q) : (TABS[tab] || home)();
+    var q = $("search").value.trim().toLowerCase(), html;
+    try { html = q ? searchAll(q) : (TABS[tab] || home)(); }
+    catch (err) { html = card("Something went wrong on this page", esc(err && err.message || err) + ". Please send this message along with exomenu.log.", "<button class='btn small' data-goto='Home'>Go home</button>"); }
     var view = (q ? "search:" + q : tab) + "|" + html;
     if (view === lastView) return; // nothing changed: leave the DOM (and images) alone
     var switched = lastView.split("|")[0] !== view.split("|")[0];
@@ -477,6 +499,7 @@ export const PAGE = `<!doctype html>
     $("subtitle").textContent = q ? "" : (SUB[tab] || "");
     var c = $("content");
     c.innerHTML = html;
+    watchThumbs();
     if (switched) { c.classList.remove("fade"); void c.offsetWidth; c.classList.add("fade"); $("main").scrollTop = 0; }
   }
 
@@ -490,7 +513,7 @@ export const PAGE = `<!doctype html>
 
   // ── events ─────────────────────────────────────────────────────────────────────────
   function lookPatch(p, ok) { return post("/api/looks", p, ok, function (s) { for (var k in p) s.settings.looks[k] = p[k]; }); }
-  function setTab(t) { tab = t; $("search").value = ""; store("exomenu-tab", t); if (t === "Character" || t === "Backgrounds" || t === "Profile") media = null; render(); }
+  function setTab(t) { tab = t; $("search").value = ""; store("exomenu-tab", t); if (t === "Character" || t === "Backgrounds" || t === "Profile") media = null; if (t === "Profile") icons = null; render(); }
 
   document.addEventListener("click", function (e) {
     var t = e.target.closest("button, .track, .q"); if (!t) return;
@@ -524,6 +547,7 @@ export const PAGE = `<!doctype html>
     switch (d.action) {
       case "refresh-wardrobe": wardrobe = null; lastView = ""; return render();
       case "refresh-media": media = null; lastView = ""; return render();
+      case "refresh-icons": icons = null; lastView = ""; return render();
       case "name-color": return lookPatch({ nameColor: $("name-color").value, nameRainbow: false }, "Name colour set");
       case "name-reset": return lookPatch({ nameColor: null, nameRainbow: false }, "Name colour reset");
       case "bg-tint": return lookPatch({ backgroundTint: $("bg-tint").value });
@@ -535,12 +559,42 @@ export const PAGE = `<!doctype html>
     }
   });
 
-  // Missing thumbnails: retry once (some pictures load a moment later), then show the initial.
-  document.addEventListener("error", function (e) {
-    var img = e.target; if (!img || !img.dataset || !img.dataset.thumb) return;
-    if (!img.dataset.retried) { img.dataset.retried = "1"; setTimeout(function () { img.src = img.src.split("#")[0] + "#r"; }, 1500); return; }
-    img.parentNode.classList.add("noimg");
-  }, true);
+  // Pictures load a few at a time, only once they scroll into view, so they never hold up the
+  // menu's own requests (or the game). Each failed picture is retried once, then shows its letter.
+  var thumbQueue = [], thumbBusy = 0, THUMB_PARALLEL = 3, thumbCache = {};
+  var seen = "IntersectionObserver" in window ? new IntersectionObserver(function (entries) {
+    entries.forEach(function (en) { if (en.isIntersecting) { seen.unobserve(en.target); queueThumb(en.target); } });
+  }, { rootMargin: "300px" }) : null;
+  function queueThumb(img) { thumbQueue.push(img); nextThumb(); }
+  function nextThumb() {
+    while (thumbBusy < THUMB_PARALLEL && thumbQueue.length) {
+      var img = thumbQueue.shift();
+      if (!img.isConnected) continue;
+      thumbBusy++;
+      loadThumb(img, img.dataset.src, false);
+    }
+  }
+  function loadThumb(img, src, retry) {
+    if (thumbCache[src] === false && !retry) { img.parentNode.classList.add("noimg"); thumbBusy--; return nextThumb(); }
+    var probe = new Image();
+    probe.onload = function () { thumbCache[src] = true; img.src = src; thumbBusy--; nextThumb(); };
+    probe.onerror = function () {
+      thumbBusy--;
+      if (!retry) { setTimeout(function () { thumbBusy++; loadThumb(img, src, true); }, 1500); }
+      else { thumbCache[src] = false; if (img.parentNode) img.parentNode.classList.add("noimg"); }
+      nextThumb();
+    };
+    probe.src = src + (retry ? "?r" : "");
+  }
+  function watchThumbs() {
+    var imgs = document.querySelectorAll("img[data-src]:not([src])");
+    for (var i = 0; i < imgs.length; i++) {
+      var src = imgs[i].dataset.src;
+      if (thumbCache[src] === true) imgs[i].src = src;
+      else if (thumbCache[src] === false) imgs[i].parentNode.classList.add("noimg");
+      else if (seen) seen.observe(imgs[i]); else queueThumb(imgs[i]);
+    }
+  }
 
   var RANGE = {
     skinImageScale: function (v) { return lookPatch({ skinImageScale: v }); },

@@ -1,6 +1,6 @@
 import "frida-il2cpp-bridge";
 import { dataController, gameClass, probeViews } from "./game.js";
-import { listMedia, loadMedia, MediaEntry, MediaPlayer } from "./media.js";
+import { listMedia, loadMedia, MediaEntry, MediaPlayer, unusableMedia } from "./media.js";
 import { sharedWith } from "./scanner.js";
 import { color, componentsIn, hsv, isAlive, keep, readVector3, typeOf, uclass, vector3 } from "./unity.js";
 import { onMyCharacterDressed } from "./wardrobe.js";
@@ -428,8 +428,13 @@ export function updateLooks(next: LooksSettings): void {
     }
 }
 
-export function looksMedia(): { backgrounds: MediaEntry[]; skins: MediaEntry[]; pfp: MediaEntry[] } {
-    return { backgrounds: listMedia(dirs.backgrounds), skins: listMedia(dirs.skins), pfp: listMedia(dirs.pfp) };
+export function looksMedia() {
+    return {
+        backgrounds: listMedia(dirs.backgrounds),
+        skins: listMedia(dirs.skins),
+        pfp: listMedia(dirs.pfp),
+        unusable: { backgrounds: unusableMedia(dirs.backgrounds), skins: unusableMedia(dirs.skins), pfp: unusableMedia(dirs.pfp) },
+    };
 }
 
 export function looksNotes(): string[] {

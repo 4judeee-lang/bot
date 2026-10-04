@@ -136,6 +136,51 @@ function diskPath(kind: ThumbKind, id: string): string {
     return `${cacheDir}/${kind}-${id.replace(/[^A-Za-z0-9_.-]/g, "_")}.png`;
 }
 
+// Thumbnail requests are queued and made in small batches on the main thread (a few milliseconds
+// per frame at most), so opening a picker with hundreds of items never stutters the game.
+interface Job {
+    kind: ThumbKind;
+    id: string;
+    done: (pixels: { rgba: Uint8Array; width: number; height: number } | null) => void;
+}
+const queue: Job[] = [];
+let pumping = false;
+const broken = new Map<ThumbKind, number>(); // consecutive errors per kind
+const BATCH_MS = 6;
+
+function pump(): void {
+    if (pumping || queue.length === 0) return;
+    pumping = true;
+    Il2Cpp.perform(() => {
+        const start = Date.now();
+        while (queue.length && Date.now() - start < BATCH_MS) {
+            const job = queue.shift()!;
+            if ((broken.get(job.kind) ?? 0) >= 5) {
+                job.done(null);
+                continue;
+            }
+            try {
+                const sprite = spriteFor(job.kind, job.id);
+                job.done(sprite ? readSprite(sprite) : null);
+                broken.set(job.kind, 0);
+            } catch (e) {
+                const n = (broken.get(job.kind) ?? 0) + 1;
+                broken.set(job.kind, n);
+                if (n === 5) log(`Thumbnails: giving up on ${job.kind} pictures: ${e}`);
+                job.done(null);
+            }
+        }
+    }, "main")
+        .catch(e => {
+            log(`Thumbnails: ${e}`);
+            for (const job of queue.splice(0)) job.done(null);
+        })
+        .finally(() => {
+            pumping = false;
+            if (queue.length) setTimeout(pump, 16);
+        });
+}
+
 /** A PNG thumbnail for a cosmetic, or null if the game has no picture for it. */
 export async function thumbnail(kind: ThumbKind, id: string): Promise<ArrayBuffer | null> {
     if (!(kind in VIEW_CLASS)) return null;
@@ -148,14 +193,11 @@ export async function thumbnail(kind: ThumbKind, id: string): Promise<ArrayBuffe
         return cached;
     } catch {}
 
-    const pixels = await Il2Cpp.perform(() => {
-        const sprite = spriteFor(kind, id);
-        return sprite ? readSprite(sprite) : null;
-    }, "main");
-    if (!pixels) {
-        // Some pictures load asynchronously; don't remember a miss for long.
-        return null;
-    }
+    const pixels = await new Promise<{ rgba: Uint8Array; width: number; height: number } | null>(done => {
+        queue.push({ kind, id, done });
+        pump();
+    });
+    if (!pixels) return null; // some pictures load asynchronously; don't remember a miss
     const small = shrink(pixels.rgba, pixels.width, pixels.height, SIZE);
     const png = encodePng(small.rgba, small.width, small.height);
     memory.set(key, png);

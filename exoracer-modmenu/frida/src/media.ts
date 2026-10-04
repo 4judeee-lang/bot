@@ -35,6 +35,14 @@ export function listMedia(dir: string): MediaEntry[] {
     return out;
 }
 
+/** Files in a media folder ExoMenu can't use (PDF, HEIC, WebP…), so the menu can say why. */
+export function unusableMedia(dir: string): string[] {
+    return listFiles(dir).filter(n => {
+        const ext = extension(n);
+        return !IMAGE_EXTENSIONS.includes(ext) && ext !== "gif";
+    });
+}
+
 const cache = new Map<string, Media>();
 
 /** Must run on Unity's main thread. `fps` is used for frame folders (GIFs carry their own timing). */
