@@ -131,6 +131,15 @@ const VIEW_HOOKS: ViewHook[] = [
     { method: "SetTrail", params: ["System.String", "System.String"], slot: "trail", getter: "get_Trail" },
 ];
 
+const dressedListeners: ((view: Il2Cpp.Object) => void)[] = [];
+
+/** Calls `cb` (on the main thread) with your CharacterEntityView each time the game dresses it. */
+export function onMyCharacterDressed(cb: (view: Il2Cpp.Object) => void, log: Log): boolean {
+    if (!installViewHooks(log)) return false;
+    dressedListeners.push(cb);
+    return true;
+}
+
 function installViewHooks(log: Log): boolean {
     if (hooksReady !== null) return hooksReady;
     const view = gameClass("NyanStudio.CharacterEntityView");
@@ -156,7 +165,8 @@ function installViewHooks(log: Log): boolean {
             onEnter(args) {
                 this.mine = false;
                 const pick = chosen[h.slot];
-                if (!pick && !(isTrail && extraTrails.length > 0)) return;
+                const wanted = pick || (isTrail && extraTrails.length > 0) || (h.slot === "skin" && dressedListeners.length > 0);
+                if (!wanted) return;
                 const passed = readString(args[1]);
                 if (passed === null || passed !== equipped(h.getter)) return; // someone else's character
                 this.mine = true;
@@ -168,6 +178,16 @@ function installViewHooks(log: Log): boolean {
                 }
             },
             onLeave() {
+                if (h.slot === "skin" && this.mine) {
+                    const view = new Il2Cpp.Object(this.self);
+                    for (const cb of dressedListeners) {
+                        try {
+                            cb(view);
+                        } catch (e) {
+                            log(`After dressing your character: ${e}`);
+                        }
+                    }
+                }
                 if (isTrail && this.mine && extraTrails.length > 0 && !addingTrails) {
                     try {
                         addExtraTrails(new Il2Cpp.Object(this.self), log);

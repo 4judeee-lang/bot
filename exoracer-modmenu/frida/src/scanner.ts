@@ -318,21 +318,6 @@ export function deepDump(): string {
     return lines.join("\n") + "\n";
 }
 
-// What the practice TAS needs: replays and ghosts, the editor's autorun, input, the game loop and its
-// timing, and the code that submits runs (so it can be blocked while the TAS is loaded).
-const TAS_CLASS =
-    /replay|autorun|ghost|input|^run$|runservice|runitem|^game$|gamestate|gamecontroller|gamemanager|gamescreen|frame|step|tick|simulat|submit|leaderboard|practice|race|^level$|levelservice|timer|clock|bot/i;
-
-export function tasDump(): string {
-    const lines: string[] = [];
-    lines.push("# ExoMenu TAS dump (IL2CPP)");
-    lines.push(`# Unity ${safe(() => Il2Cpp.unityVersion)} · Exoracer ${safe(() => Il2Cpp.application.version ?? "?")} · ${new Date().toISOString()}`);
-    lines.push("# Names and types only, no save data.");
-    lines.push("");
-    describeClasses(Il2Cpp.domain.assemblies.filter(a => assemblyName(a).startsWith("Assembly-CSharp")), TAS_CLASS, lines);
-    return lines.join("\n") + "\n";
-}
-
 function describeClasses(assemblies: Il2Cpp.Assembly[], filter: RegExp, lines: string[]): void {
     let count = 0;
     for (const klass of allClasses(assemblies)) {

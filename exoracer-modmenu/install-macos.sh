@@ -108,6 +108,14 @@ install_il2cpp() {
 
   bold "3/4  Installing the ExoMenu agent"
   cp "$agent" "$menu_dir/exomenu-agent.js"
+  # Folders the menu reads from, plus the mod docs, an example mod (never overwriting your edits)
+  # and the music converter.
+  mkdir -p "$menu_dir/backgrounds" "$menu_dir/skins" "$menu_dir/profile-pictures" "$menu_dir/music" "$menu_dir/mods"
+  cp "$HERE/frida/mods/README.md" "$menu_dir/mods/README.md"
+  [ -f "$menu_dir/mods/example-party-name.js" ] || cp "$HERE/frida/mods/example-party-name.js" "$menu_dir/mods/"
+  cp "$HERE/frida/convert-music.command" "$menu_dir/music/convert-music.command"
+  chmod +x "$menu_dir/music/convert-music.command"
+  xattr -d com.apple.quarantine "$menu_dir/music/convert-music.command" 2>/dev/null || true
   # Gadget reads <its name>.config from its own folder: run our script as soon as the game starts.
   python3 -c 'import json,sys; json.dump({"interaction": {"type": "script", "path": sys.argv[2], "on_change": "reload"}}, open(sys.argv[1], "w"), indent=2)' \
     "$menu_dir/exomenu-gadget.config" "$menu_dir/exomenu-agent.js"

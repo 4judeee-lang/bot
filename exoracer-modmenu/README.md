@@ -6,18 +6,28 @@ The installer checks which kind of build your copy of Exoracer is and installs t
 
 | Your build | How ExoMenu loads | Where the menu is |
 | --- | --- | --- |
-| **Unity IL2CPP** (the current Steam release on macOS) | [Frida Gadget](https://frida.re/docs/gadget/) + the agent in `frida/` | In your browser at `http://127.0.0.1:7777` while the game runs |
+| **Unity IL2CPP** (the current Steam release on macOS) | [Frida Gadget](https://frida.re/docs/gadget/) + the agent in `frida/` | In-game: press <kbd>`</kbd> (rebindable). Also at `http://127.0.0.1:7777` |
 | Unity Mono | BepInEx 5 + the plugin in `src/` | In-game; press <kbd>`</kbd> |
 
-**Features so far**
+Everything is **client-side**: it changes what your game draws, never your account, and other players see your real cosmetics.
 
-| Tab | Feature | What it does |
-| --- | --- | --- |
-| Wardrobe *(IL2CPP)* | **Wear anything** | Pick any skin, glider skin, hook skin or trail and your game draws you wearing it. Uses the game's own `DebugController` override, so nothing is added to your inventory, the server is never asked, and other players still see your real cosmetics. |
-| Cosmetics | Unlock All / shop shows owned | Hooks the game's "is this unlocked?" checks. On Exoracer that only affects the shop display, since equipping goes through the server; use the Wardrobe instead. |
-| Display | Unlock FPS | Turns off vsync and sets a frame rate cap (or none). |
-| Display | FPS Counter *(Mono version only)* | Shows your frame rate in the top-right corner. |
-| Tools | Cosmetic dump | Writes a list of the game's cosmetic classes and checks, for tuning Unlock All. |
+**Features (IL2CPP version)**
+
+| Tab | What it does |
+| --- | --- |
+| Home | Quick switches for the most-used features. |
+| Wardrobe | **Own every skin**: every skin, glider, hook and trail shows as owned in the game's customization and can be equipped there. Cosmetic uploads are blocked while it's on, and your real equips come back when it's off. **Wear anything**: wear any cosmetic without equipping it. |
+| Trails | Stack up to 8 extra trails on top of the game's two. |
+| Character | Name colour (any colour, or rainbow). Custom skin image: your own PNG/JPG/GIF or a folder of frames as your skin (experimental). |
+| Backgrounds | Your own background in menus and levels: still images, animated GIFs, or a folder of numbered frames. Zoom, tint and FPS controls. |
+| Profile | Custom profile picture (still or animated), or any of the game's built-in profile icons, shown as yours. |
+| Music | Plays your WAV songs in-game, with volume, repeat, shuffle, autoplay, and muting the game's music. `convert-music.command` in the music folder converts MP3/M4A to WAV. |
+| Mods | A mod loader: `.js` files in `ExoMenu/mods` get switches, settings and keybinds. See `frida/mods/README.md` for the API. |
+| Keybinds | Bind any feature (and any mod feature) to a key, with ⌘ ⌃ ⌥ ⇧ modifiers. |
+| Settings | Accent colour, menu size, Unlock FPS with a frame rate cap. |
+| Tools | Shop shows everything as owned (display only), dump files and equip recording for troubleshooting. |
+
+Your files go in these folders inside `Exoracer/ExoMenu/` (the menu's **Open folder** buttons open them): `backgrounds/`, `skins/`, `profile-pictures/`, `music/`, `mods/`. PDFs can't be used as images: export the page as PNG first (Preview → File → Export).
 
 ## Install (IL2CPP / current Steam version)
 
@@ -29,7 +39,7 @@ The installer checks which kind of build your copy of Exoracer is and installs t
    `./install-macos.sh "/Volumes/Games/SteamLibrary/steamapps/common/Exoracer"`
 2. Paste the launch option it prints into **Steam → Exoracer → Properties → General → Launch Options**. It looks like this:
    `"/Users/you/Library/Application Support/Steam/steamapps/common/Exoracer/run_exomenu.sh" %command%`
-3. Launch Exoracer from Steam. The first time, the menu opens in your browser by itself. After that, go to **http://127.0.0.1:7777** while the game is running. Bookmark it.
+3. Launch Exoracer from Steam and press <kbd>`</kbd> (left of 1 on US keyboards, next to left Shift on UK/EU ones) to open the menu in the game.
 
 Nothing extra needs to be installed. The installer downloads Frida Gadget and uses the prebuilt `frida/exomenu-agent.js`.
 

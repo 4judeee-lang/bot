@@ -1,23 +1,33 @@
 import "frida-il2cpp-bridge";
-import { serve, Request, Response } from "./http.js";
-import { deepDump, dump, scan, ScanResult, Target, tasDump } from "./scanner.js";
-import { replaceWithConstant, revertTarget } from "./native.js";
-import { catalog, getExtraTrails, overrides, setExtraTrails, setOverride, Slot, SLOTS, traceEquipFlow } from "./wardrobe.js";
 import { setOwnEverything, status as ownStatus } from "./cosmetics.js";
-import { currentKey, KeyBinding, listenForKey, startOverlay } from "./overlay.js";
-import { setTas, tasAction, tasStatus } from "./tas.js";
+import { ensureDir } from "./fsutil.js";
+import { serve, Request, Response } from "./http.js";
+import { iconCatalog, LOOKS_DEFAULTS, LooksSettings, looksMedia, looksNotes, startLooks, updateLooks } from "./looks.js";
+import { modsStatus, reloadMods, SavedModState, setFeature, setFeatureValue, setModEnabled, startMods, hasFeature, featureEnabled } from "./mods.js";
+import { MUSIC_DEFAULTS, MusicSettings, musicStatus, pause, play, skip, startMusic, toggle as toggleMusic, updateMusic } from "./music.js";
+import { replaceWithConstant, revertTarget } from "./native.js";
+import { clearKey, DEFAULT_MENU_KEY, KeyBinding, keyState, listenForKey, revealFolder, setOverlaySize, startOverlay, toggleFromAgent } from "./overlay.js";
+import { deepDump, dump, scan, ScanResult, Target } from "./scanner.js";
 import { PAGE } from "./ui.js";
+import { catalog, getExtraTrails, overrides, setExtraTrails, setOverride, Slot, SLOTS, traceEquipFlow } from "./wardrobe.js";
 
-const VERSION = "0.5.0";
+const VERSION = "0.6.0";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)
 const GAME_DIR = Process.mainModule.path.split("/").slice(0, -4).join("/");
 const DATA_DIR = `${GAME_DIR}/ExoMenu`;
+const FOLDERS = {
+    backgrounds: `${DATA_DIR}/backgrounds`,
+    skins: `${DATA_DIR}/skins`,
+    pfp: `${DATA_DIR}/profile-pictures`,
+    music: `${DATA_DIR}/music`,
+    mods: `${DATA_DIR}/mods`,
+    main: DATA_DIR,
+};
 const SETTINGS_PATH = `${DATA_DIR}/settings.json`;
 const DUMP_PATH = `${DATA_DIR}/cosmetics-dump.txt`;
 const DEEP_DUMP_PATH = `${DATA_DIR}/deep-dump.txt`;
-const TAS_DUMP_PATH = `${DATA_DIR}/tas-dump.txt`;
 const URL_PATH = `${DATA_DIR}/menu-url.txt`;
 
 // ── logging ─────────────────────────────────────────────────────────────────────────────
@@ -35,10 +45,7 @@ function log(message: string): void {
     } catch {}
 }
 
-/**
- * Replaces a file's contents. File.writeAllText left stale bytes behind when the new text was shorter
- * (settings.json ended up with a stray "}"), so open with "w", which truncates first.
- */
+/** Replaces a file's contents ("w" truncates first; File.writeAllText left stale bytes behind). */
 function writeText(path: string, text: string): void {
     const f = new File(path, "w");
     try {
@@ -61,31 +68,61 @@ interface Settings {
     wardrobe: Partial<Record<Slot, string>>;
     ownEverything: boolean;
     extraTrails: string[];
-    menuKey: KeyBinding;
+    keybinds: Record<string, KeyBinding>;
+    menuKey?: KeyBinding; // before 0.6
+    looks: LooksSettings;
+    lastBackground: LooksSettings["background"];
+    music: MusicSettings;
+    mods: SavedModState;
+    ui: { width: number; height: number };
 }
 
-const DEFAULTS: Settings = { unlockAll: false, fpsUnlock: false, fpsTarget: 0, extraMethods: [], ignoredMethods: [], forceShared: [], wardrobe: {}, ownEverything: false, extraTrails: [], menuKey: { code: 50, label: "`" } };
+const DEFAULTS: Settings = {
+    unlockAll: false,
+    fpsUnlock: false,
+    fpsTarget: 0,
+    extraMethods: [],
+    ignoredMethods: [],
+    forceShared: [],
+    wardrobe: {},
+    ownEverything: false,
+    extraTrails: [],
+    keybinds: { menu: DEFAULT_MENU_KEY },
+    looks: { ...LOOKS_DEFAULTS },
+    lastBackground: null,
+    music: { ...MUSIC_DEFAULTS },
+    mods: { disabledMods: [], features: {} },
+    ui: { width: 0.72, height: 0.8 },
+};
+
+const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 
 function loadSettings(): Settings {
     let text: string;
     try {
         text = File.readAllText(SETTINGS_PATH);
     } catch {
-        return { ...DEFAULTS };
+        return clone(DEFAULTS);
     }
+    let parsed: Partial<Settings>;
     try {
-        return { ...DEFAULTS, ...JSON.parse(text) };
+        parsed = JSON.parse(text);
     } catch {
-        // Older versions could leave junk after the closing brace; keep what's before it.
         try {
-            const repaired = { ...DEFAULTS, ...JSON.parse(text.slice(0, text.lastIndexOf("}"))) };
+            parsed = JSON.parse(text.slice(0, text.lastIndexOf("}"))); // older versions could leave junk at the end
             log("Repaired settings.json");
-            return repaired;
         } catch {
             log("settings.json was unreadable; starting from defaults");
-            return { ...DEFAULTS };
+            return clone(DEFAULTS);
         }
     }
+    const s = Object.assign(clone(DEFAULTS), parsed) as Settings;
+    s.looks = { ...LOOKS_DEFAULTS, ...(parsed.looks ?? {}) };
+    s.music = { ...MUSIC_DEFAULTS, ...(parsed.music ?? {}) };
+    const oldMenuKey: KeyBinding | null = parsed.menuKey ? { code: parsed.menuKey.code, label: parsed.menuKey.label, mods: parsed.menuKey.mods ?? 0 } : null;
+    s.keybinds = { menu: oldMenuKey ?? DEFAULT_MENU_KEY, ...(parsed.keybinds ?? {}) };
+    delete s.menuKey;
+    return s;
 }
 
 const settings = loadSettings();
@@ -98,11 +135,11 @@ function saveSettings(): void {
     }
 }
 
-// ── Unlock All ──────────────────────────────────────────────────────────────────────────
+// ── Unlock All (shop shows owned) ───────────────────────────────────────────────────────
 
-const hooked = new Set<string>(); // addresses replaced with a native constant stub
+const hooked = new Set<string>();
 let lastScan: ScanResult | null = null;
-let unlockStatus = "Waiting for the game to load…";
+let unlockStatus = "Off.";
 
 function rescan(): ScanResult {
     lastScan = scan({ extra: settings.extraMethods, ignored: settings.ignoredMethods, forceShared: settings.forceShared });
@@ -116,10 +153,8 @@ function hook(targets: Target[]): number {
         const id = t.address.toString();
         if (hooked.has(id)) continue;
         try {
-            // A native "return true/false" stub: no JavaScript runs on game threads.
             replaceWithConstant(t.address, ptr(t.kind === "true" ? 1 : 0));
             hooked.add(id);
-            log(`  hooked [${t.kind}] ${t.key}`);
         } catch (e) {
             failed++;
             log(`  couldn't hook ${t.key}: ${(e as Error).message}`);
@@ -128,31 +163,16 @@ function hook(targets: Target[]): number {
     return failed;
 }
 
-function unhookAll(): void {
-    for (const id of hooked) {
-        try {
-            revertTarget(ptr(id));
-        } catch (e) {
-            log(`  couldn't unhook ${id}: ${(e as Error).message}`);
-        }
-    }
-    hooked.clear();
-}
-
 async function setUnlockAll(on: boolean): Promise<void> {
     await Il2Cpp.perform(() => {
-        unhookAll();
+        for (const id of hooked) revertTarget(ptr(id));
+        hooked.clear();
         if (!on) {
-            unlockStatus = "Off. Everything is back to how the game had it.";
-            log("Unlock All: off");
+            unlockStatus = "Off.";
             return;
         }
-        const result = rescan();
-        const failed = hook(result.targets);
-        unlockStatus =
-            hooked.size === 0
-                ? "No unlock checks could be hooked. Write the dump file and send it over so the rules can be tailored."
-                : `Hooked ${hooked.size} unlock checks` + (failed ? ` (${failed} failed, see exomenu.log).` : ".") + " Reopen the skin menu to see everything.";
+        const failed = hook(rescan().targets);
+        unlockStatus = `Hooked ${hooked.size} unlock checks` + (failed ? ` (${failed} failed, see exomenu.log).` : ".");
         log(`Unlock All: ${unlockStatus}`);
     });
     settings.unlockAll = on;
@@ -169,7 +189,6 @@ function unityClass(name: string): Il2Cpp.Class {
 }
 
 function applyFps(target: number, vsync: number): Promise<void> {
-    // Unity only allows these calls from its main thread.
     return Il2Cpp.perform(() => {
         unityClass("UnityEngine.QualitySettings").method("set_vSyncCount").invoke(vsync);
         unityClass("UnityEngine.Application").method("set_targetFrameRate").invoke(target);
@@ -184,13 +203,12 @@ async function setFpsUnlock(on: boolean): Promise<void> {
                     target: unityClass("UnityEngine.Application").method<number>("get_targetFrameRate").invoke(),
                     vsync: unityClass("UnityEngine.QualitySettings").method<number>("get_vSyncCount").invoke(),
                 }),
-                "main"
+                "main",
             );
         }
         const apply = () => applyFps(settings.fpsTarget > 0 ? settings.fpsTarget : -1, 0).catch(e => log(`FPS unlock failed: ${e}`));
         await apply();
-        // The game can reset these when you change settings or scenes.
-        if (!fpsTimer) fpsTimer = setInterval(apply, 2000);
+        if (!fpsTimer) fpsTimer = setInterval(apply, 5000); // the game can reset these on scene changes
     } else {
         if (fpsTimer) clearInterval(fpsTimer);
         fpsTimer = null;
@@ -200,20 +218,87 @@ async function setFpsUnlock(on: boolean): Promise<void> {
     saveSettings();
 }
 
-// ── dump ────────────────────────────────────────────────────────────────────────────────
+// ── looks, music, mods ──────────────────────────────────────────────────────────────────
 
-/** Writes both dumps and returns the folder they're in. */
-function writeDump(): Promise<string> {
-    return Il2Cpp.perform(() => {
-        writeText(DUMP_PATH, dump(lastScan ?? rescan()));
-        log(`Wrote ${DUMP_PATH}`);
-        const started = Date.now();
-        writeText(DEEP_DUMP_PATH, deepDump());
-        log(`Wrote ${DEEP_DUMP_PATH} in ${Date.now() - started} ms`);
-        writeText(TAS_DUMP_PATH, tasDump());
-        log(`Wrote ${TAS_DUMP_PATH}`);
-        return DATA_DIR;
-    });
+let sessionLooks: Partial<LooksSettings> = {}; // set by mods, not saved
+
+async function setLooks(patch: Partial<LooksSettings>, persist = true): Promise<void> {
+    if (persist) {
+        settings.looks = { ...settings.looks, ...patch };
+        if (patch.background) settings.lastBackground = patch.background;
+        for (const k of Object.keys(patch)) delete (sessionLooks as Record<string, unknown>)[k];
+        saveSettings();
+    } else {
+        sessionLooks = { ...sessionLooks, ...patch };
+    }
+    const effective = { ...settings.looks, ...sessionLooks };
+    await Il2Cpp.perform(() => updateLooks(effective), "main");
+}
+
+async function setMusicSettings(patch: Partial<MusicSettings>): Promise<void> {
+    settings.music = { ...settings.music, ...patch };
+    saveSettings();
+    await updateMusic(settings.music);
+}
+
+async function setOwn(on: boolean): Promise<void> {
+    await setOwnEverything(on, log);
+    settings.ownEverything = ownStatus() !== "Off.";
+    saveSettings();
+}
+
+let stashedExtraTrails: string[] = [];
+
+// ── keybind actions ─────────────────────────────────────────────────────────────────────
+
+const ACTIONS: { id: string; label: string; group: string }[] = [
+    { id: "menu", label: "Open / close the menu", group: "Menu" },
+    { id: "own.toggle", label: "Own every skin on / off", group: "Cosmetics" },
+    { id: "wardrobe.clear", label: "Wear my own cosmetics again", group: "Cosmetics" },
+    { id: "trails.toggle", label: "Extra trails on / off", group: "Cosmetics" },
+    { id: "background.toggle", label: "Custom background on / off", group: "Looks" },
+    { id: "name.rainbow", label: "Rainbow name on / off", group: "Looks" },
+    { id: "music.toggle", label: "Play / pause music", group: "Music" },
+    { id: "music.next", label: "Next song", group: "Music" },
+    { id: "music.prev", label: "Previous song", group: "Music" },
+    { id: "fps.toggle", label: "Unlock FPS on / off", group: "Performance" },
+];
+
+async function runAction(action: string): Promise<void> {
+    log(`Keybind: ${action}`);
+    switch (action) {
+        case "menu":
+            return toggleFromAgent();
+        case "own.toggle":
+            return setOwn(ownStatus() === "Off.");
+        case "wardrobe.clear":
+            for (const slot of SLOTS) await Il2Cpp.perform(() => setOverride(slot, null, log));
+            settings.wardrobe = overrides();
+            return saveSettings();
+        case "trails.toggle": {
+            const now = getExtraTrails();
+            const next = now.length ? [] : stashedExtraTrails;
+            if (now.length) stashedExtraTrails = now;
+            await Il2Cpp.perform(() => setExtraTrails(next, log));
+            settings.extraTrails = next;
+            return saveSettings();
+        }
+        case "background.toggle":
+            return setLooks({ background: settings.looks.background ? null : settings.lastBackground });
+        case "name.rainbow":
+            return setLooks({ nameRainbow: !settings.looks.nameRainbow });
+        case "music.toggle":
+            return toggleMusic();
+        case "music.next":
+            return skip(1);
+        case "music.prev":
+            return skip(-1);
+        case "fps.toggle":
+            return setFpsUnlock(!settings.fpsUnlock);
+        default:
+            if (action.startsWith("mod:") && hasFeature(action.slice(4))) return setFeature(action.slice(4), !featureEnabled(action.slice(4)));
+            log(`Keybind: nothing called ${action}`);
+    }
 }
 
 // ── menu API ────────────────────────────────────────────────────────────────────────────
@@ -229,12 +314,11 @@ function state() {
         wardrobe: overrides(),
         extraTrails: getExtraTrails(),
         own: ownStatus(),
-        menuKey: currentKey(),
-        unlock: {
-            status: unlockStatus,
-            hooked: settings.unlockAll ? (lastScan?.targets ?? []).map(t => ({ key: t.key, kind: t.kind, source: t.source })) : [],
-            skipped: lastScan?.skipped ?? [],
-        },
+        keys: { ...keyState(), actions: ACTIONS },
+        music: musicStatus(),
+        mods: modsStatus(),
+        notes: looksNotes(),
+        unlock: { status: unlockStatus, skipped: lastScan?.skipped ?? [] },
     };
 }
 
@@ -251,7 +335,7 @@ async function route(req: Request): Promise<Response> {
     if (req.method === "GET" && (req.path === "/" || req.path === "/index.html")) return { type: "text/html; charset=utf-8", body: PAGE };
     if (req.method === "GET" && req.path === "/api/state") return json(state());
     if (req.method === "GET" && req.path === "/api/wardrobe") return json(await Il2Cpp.perform(() => catalog(log)));
-    if (req.method === "GET" && req.path === "/api/tas") return json(await Il2Cpp.perform(() => tasStatus()));
+    if (req.method === "GET" && req.path === "/api/media") return json({ ...looksMedia(), icons: await Il2Cpp.perform(() => iconCatalog()) });
 
     if (req.method !== "POST") return json({ error: "not found" }, 404);
     // Browsers can't add this header to cross-site requests without a CORS preflight we never answer,
@@ -263,11 +347,7 @@ async function route(req: Request): Promise<Response> {
         case "/api/toggle":
             if (body.id === "unlockAll") await setUnlockAll(!!body.on);
             else if (body.id === "fpsUnlock") await setFpsUnlock(!!body.on);
-            else if (body.id === "ownEverything") {
-                await setOwnEverything(!!body.on, log);
-                settings.ownEverything = ownStatus() !== "Off.";
-                saveSettings();
-            }
+            else if (body.id === "ownEverything") await setOwn(!!body.on);
             else return json({ error: `unknown feature ${body.id}` }, 400);
             return json(state());
         case "/api/settings":
@@ -277,13 +357,42 @@ async function route(req: Request): Promise<Response> {
             if (body.forceShared !== undefined) settings.forceShared = lines(body.forceShared);
             saveSettings();
             if (settings.fpsUnlock && body.fpsTarget !== undefined) await setFpsUnlock(true);
-            if (settings.unlockAll && (body.extraMethods !== undefined || body.ignoredMethods !== undefined || body.forceShared !== undefined))
-                await setUnlockAll(true);
             return json(state());
-        case "/api/rescan":
-            if (settings.unlockAll) await setUnlockAll(true);
-            else await Il2Cpp.perform(() => void rescan());
+        case "/api/looks":
+            await setLooks(body ?? {});
             return json(state());
+        case "/api/music":
+            if (body.action === "play") await play(body.name);
+            else if (body.action === "pause") await pause();
+            else if (body.action === "toggle") await toggleMusic();
+            else if (body.action === "next") await skip(1);
+            else if (body.action === "prev") await skip(-1);
+            else if (body.action === "settings") await setMusicSettings(body.settings ?? {});
+            else return json({ error: `unknown music action ${body.action}` }, 400);
+            return json(state());
+        case "/api/mods":
+            if (body.action === "feature") await setFeature(String(body.key), !!body.on);
+            else if (body.action === "value") await setFeatureValue(String(body.key), String(body.id), body.value);
+            else if (body.action === "mod") setModEnabled(String(body.file), !!body.on);
+            else if (body.action === "reload") reloadMods();
+            else return json({ error: `unknown mods action ${body.action}` }, 400);
+            return json(state());
+        case "/api/keys":
+            if (body.action === "listen") listenForKey(String(body.id));
+            else if (body.action === "clear") clearKey(String(body.id));
+            else if (body.action === "run") await runAction(String(body.id));
+            return json(state());
+        case "/api/ui":
+            settings.ui = { width: Number(body.width) || settings.ui.width, height: Number(body.height) || settings.ui.height };
+            setOverlaySize(settings.ui);
+            saveSettings();
+            return json(state());
+        case "/api/folder": {
+            const path = FOLDERS[body.which as keyof typeof FOLDERS];
+            if (!path) return json({ error: "unknown folder" }, 400);
+            revealFolder(path);
+            return json({ ok: true });
+        }
         case "/api/extratrails": {
             const ids = (Array.isArray(body.ids) ? body.ids : []).map(String).slice(0, 8);
             if (!(await Il2Cpp.perform(() => setExtraTrails(ids, log))))
@@ -292,26 +401,24 @@ async function route(req: Request): Promise<Response> {
             saveSettings();
             return json(state());
         }
-        case "/api/tas":
-            await Il2Cpp.perform(() => void setTas(!!body.on, log), "main");
-            return json(await Il2Cpp.perform(() => tasStatus()));
-        case "/api/tas/action":
-            await Il2Cpp.perform(() => tasAction(String(body.action), Number(body.value) || 0, log), "main");
-            return json(await Il2Cpp.perform(() => tasStatus()));
-        case "/api/menukey":
-            listenForKey();
-            return json(state());
-        case "/api/trace":
-            return json({ attached: await Il2Cpp.perform(() => traceEquipFlow(log)) });
         case "/api/wardrobe":
             if (!SLOTS.includes(body.slot)) return json({ error: `unknown slot ${body.slot}` }, 400);
             if (!(await Il2Cpp.perform(() => setOverride(body.slot, body.id ? String(body.id) : null, log))))
-                return json({ error: "The game doesn't allow changing this safely yet (see exomenu.log). Send the log over." }, 400);
+                return json({ error: "The game doesn't allow changing this safely yet (see exomenu.log)." }, 400);
             settings.wardrobe = overrides();
             saveSettings();
             return json(state());
+        case "/api/trace":
+            return json({ attached: await Il2Cpp.perform(() => traceEquipFlow(log)) });
         case "/api/dump":
-            return json({ path: await writeDump() });
+            return json({
+                path: await Il2Cpp.perform(() => {
+                    writeText(DUMP_PATH, dump(lastScan ?? rescan()));
+                    writeText(DEEP_DUMP_PATH, deepDump());
+                    log(`Wrote ${DUMP_PATH} and ${DEEP_DUMP_PATH}`);
+                    return DATA_DIR;
+                }),
+            });
         default:
             return json({ error: "not found" }, 404);
     }
@@ -320,6 +427,15 @@ async function route(req: Request): Promise<Response> {
 // ── start ───────────────────────────────────────────────────────────────────────────────
 
 log(`ExoMenu ${VERSION} loading into ${Process.mainModule.name} (pid ${Process.id})`);
+for (const dir of Object.values(FOLDERS)) ensureDir(dir);
+
+function step(name: string, fn: () => void): void {
+    try {
+        fn();
+    } catch (e) {
+        log(`Startup: ${name} failed: ${(e as Error).stack ?? e}`);
+    }
+}
 
 Il2Cpp.perform(async () => {
     gameInfo = {
@@ -330,27 +446,49 @@ Il2Cpp.perform(async () => {
 
     const port = await serve(FIRST_PORT, route, log);
     const url = `http://127.0.0.1:${port}/`;
-    try {
-        writeText(URL_PATH, url);
-    } catch {}
+    step("menu-url", () => writeText(URL_PATH, url));
     log(`Menu is at ${url}`);
 
-    try {
-        startOverlay(url, settings.menuKey, key => {
-            settings.menuKey = key;
-            saveSettings();
-        }, log);
-    } catch (e) {
-        log(`Overlay failed to start: ${e}`);
-    }
+    step("overlay", () =>
+        startOverlay({
+            url,
+            bindings: settings.keybinds,
+            size: settings.ui,
+            onBindingsChanged: b => {
+                settings.keybinds = b;
+                saveSettings();
+            },
+            onAction: a => {
+                runAction(a).catch(e => log(`Keybind ${a} failed: ${e}`));
+            },
+            log,
+        }),
+    );
+    step("wardrobe", () => {
+        for (const slot of SLOTS) {
+            const id = settings.wardrobe?.[slot];
+            if (id) setOverride(slot, id, log);
+        }
+        if (settings.extraTrails?.length) setExtraTrails(settings.extraTrails, log);
+    });
+    step("looks", () => startLooks(settings.looks, FOLDERS, log));
+    step("music", () => startMusic(FOLDERS.music, settings.music, log));
+    step("mods", () =>
+        startMods(
+            FOLDERS.mods,
+            settings.mods,
+            s => {
+                settings.mods = s;
+                saveSettings();
+            },
+            log,
+            {
+                looks: patch => setLooks(patch as Partial<LooksSettings>, false),
+                run: action => runAction(action),
+            },
+        ),
+    );
 
-    log("Startup: applying saved wardrobe picks");
-    for (const slot of SLOTS) {
-        const id = settings.wardrobe?.[slot];
-        if (id) setOverride(slot, id, log);
-    }
-
-    if (settings.extraTrails?.length) setExtraTrails(settings.extraTrails, log);
     if (settings.ownEverything) {
         // DataController loads after sign-in; keep trying for a minute.
         let tries = 0;
@@ -362,13 +500,7 @@ Il2Cpp.perform(async () => {
                 .catch(e => log(`Own everything failed: ${e}`));
         }, 5000);
     }
-
-    log("Startup: applying Unlock All");
-    if (settings.unlockAll) await setUnlockAll(true);
-    else unlockStatus = "Off.";
-    log("Startup: done");
+    if (settings.unlockAll) await setUnlockAll(true).catch(e => log(`Unlock All failed: ${e}`));
     if (settings.fpsUnlock) await setFpsUnlock(true).catch(e => log(`FPS unlock failed: ${e}`));
-
-    // Cheap (well under a second), and keeps the dumps matching the running version.
-    await writeDump().catch(e => log(`Couldn't write the dumps: ${e}`));
+    log("Startup: done");
 }).catch(e => log(`ExoMenu failed to start: ${(e as Error).stack ?? e}`));
