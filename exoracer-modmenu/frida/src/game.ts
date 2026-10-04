@@ -2,6 +2,9 @@ import "frida-il2cpp-bridge";
 
 // Shared lookups into Exoracer's code.
 
+/** Handles of our hidden thumbnail probe views; hooks on the game's views ignore these. */
+export const probeViews = new Set<string>();
+
 export function gameClass(name: string): Il2Cpp.Class | null {
     return Il2Cpp.domain.tryAssembly("Assembly-CSharp")?.image.tryClass(name) ?? null;
 }

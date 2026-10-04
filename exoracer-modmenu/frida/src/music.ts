@@ -34,12 +34,19 @@ let muteTimer: ReturnType<typeof setInterval> | null = null;
 
 const audio = (name: string) => uclass("UnityEngine.AudioModule", name);
 
+// The menu asks for these every couple of seconds; read the folder at most every 3 s.
+let listing: { at: number; files: string[] } = { at: 0, files: [] };
+function files(): string[] {
+    if (Date.now() - listing.at > 3000) listing = { at: Date.now(), files: listFiles(dir) };
+    return listing.files;
+}
+
 export function tracks(): string[] {
-    return listFiles(dir).filter(n => extension(n) === "wav");
+    return files().filter(n => extension(n) === "wav");
 }
 
 export function unconverted(): string[] {
-    return listFiles(dir).filter(n => ["mp3", "m4a", "aac", "aiff", "aif", "flac", "caf"].includes(extension(n)));
+    return files().filter(n => ["mp3", "m4a", "aac", "aiff", "aif", "flac", "caf"].includes(extension(n)));
 }
 
 function ensureSource(): Il2Cpp.Object {

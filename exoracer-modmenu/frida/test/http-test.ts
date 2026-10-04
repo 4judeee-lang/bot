@@ -3,13 +3,15 @@
 // any process with Frida.
 import { serve } from "../src/http.js";
 import { PAGE } from "../src/ui.js";
+import { encodePng } from "../src/png.js";
 
 const looks = { background: null as any, backgroundFps: 12, backgroundScale: 1, backgroundTint: "#ffffff", skinImage: null as any, skinImageFps: 12, skinImageScale: 1, nameColor: null as any, nameRainbow: false, pfp: null as any, pfpFps: 12 };
 const music = { volume: 0.6, repeat: "all", shuffle: false, muteGameMusic: true, autoplay: false };
 const s: any = {
-    version: "0.6.0", unity: "6000.3.17f1", game: "2.9.3", dataDir: "/Users/you/…/Exoracer/ExoMenu",
+    version: "0.7.0", unity: "6000.3.17f1", game: "2.9.3", dataDir: "/Users/you/…/Exoracer/ExoMenu",
     settings: { unlockAll: false, fpsUnlock: false, fpsTarget: 0, looks, music, ui: { width: 0.72, height: 0.8 }, keybinds: {} },
     wardrobe: {}, extraTrails: [], own: "Off.", notes: [],
+    wearing: { skin: "mummy", gliderSkin: "rocket", hookSkin: null, trail: "fire" },
     keys: {
         bindings: { menu: { code: 50, label: "`", mods: 0 } }, listeningFor: null,
         actions: [
@@ -33,15 +35,33 @@ const media = {
     backgrounds: [{ name: "space.gif", kind: "gif" }, { name: "city.png", kind: "image" }, { name: "rain", kind: "frames" }],
     skins: [{ name: "me.png", kind: "image" }],
     pfp: [{ name: "cat.gif", kind: "gif" }],
+    icons: ["icon_cat", "icon_star", "icon_bolt"],
 };
+
+// A coloured disc per id, so tiles show something; "ninja" is missing to exercise the fallback.
+function fakeThumb(id: string): ArrayBuffer {
+    const n = 48, px = new Uint8Array(n * n * 4);
+    let h = 0;
+    for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+        const i = (y * n + x) * 4, d = Math.hypot(x - n / 2, y - n / 2);
+        px[i] = h & 255; px[i + 1] = (h >> 8) & 255; px[i + 2] = (h >> 16) & 255; px[i + 3] = d < n / 2 - 2 ? 255 : 0;
+    }
+    return encodePng(px, n, n);
+}
 
 const ok = (body: unknown) => ({ type: "application/json", body: JSON.stringify(body) });
 
 serve(7777, req => {
     if (req.path === "/") return { type: "text/html; charset=utf-8", body: PAGE };
     if (req.path === "/api/state") return ok(s);
-    if (req.path === "/api/wardrobe") return ok(wardrobe);
+    if (req.method === "GET" && req.path === "/api/wardrobe") return ok(wardrobe);
     if (req.path === "/api/media") return ok(media);
+    if (req.path.startsWith("/thumb/")) {
+        const id = decodeURIComponent(req.path.split("/")[3].replace(/\.png$/, ""));
+        if (id === "ninja") return { status: 404, body: "" };
+        return { type: "image/png", body: "", bytes: fakeThumb(id), cache: 60 };
+    }
     if (req.headers["x-exomenu"] !== "1") return { status: 403, body: "{}" };
     const b = JSON.parse(req.body || "{}");
     switch (req.path) {
@@ -51,6 +71,7 @@ serve(7777, req => {
             break;
         case "/api/looks":
             Object.assign(looks, b);
+            (looks as any).pfpIcon = b.pfpIcon !== undefined ? b.pfpIcon : (looks as any).pfpIcon;
             break;
         case "/api/music":
             if (b.action === "play") Object.assign(s.music, { playing: true, current: b.name ?? s.music.tracks[0] });

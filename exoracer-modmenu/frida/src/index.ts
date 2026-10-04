@@ -1,5 +1,6 @@
 import "frida-il2cpp-bridge";
 import { setOwnEverything, status as ownStatus } from "./cosmetics.js";
+import { equipped } from "./game.js";
 import { ensureDir } from "./fsutil.js";
 import { serve, Request, Response } from "./http.js";
 import { iconCatalog, LOOKS_DEFAULTS, LooksSettings, looksMedia, looksNotes, startLooks, updateLooks } from "./looks.js";
@@ -8,10 +9,11 @@ import { MUSIC_DEFAULTS, MusicSettings, musicStatus, pause, play, skip, startMus
 import { replaceWithConstant, revertTarget } from "./native.js";
 import { clearKey, DEFAULT_MENU_KEY, KeyBinding, keyState, listenForKey, revealFolder, setOverlaySize, startOverlay, toggleFromAgent } from "./overlay.js";
 import { deepDump, dump, scan, ScanResult, Target } from "./scanner.js";
+import { startThumbs, thumbnail, ThumbKind } from "./thumbs.js";
 import { PAGE } from "./ui.js";
 import { catalog, getExtraTrails, overrides, setExtraTrails, setOverride, Slot, SLOTS, traceEquipFlow } from "./wardrobe.js";
 
-const VERSION = "0.6.0";
+const VERSION = "0.7.0";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)
@@ -314,12 +316,32 @@ function state() {
         wardrobe: overrides(),
         extraTrails: getExtraTrails(),
         own: ownStatus(),
+        wearing: wearing(),
         keys: { ...keyState(), actions: ACTIONS },
         music: musicStatus(),
         mods: modsStatus(),
         notes: looksNotes(),
         unlock: { status: unlockStatus, skipped: lastScan?.skipped ?? [] },
     };
+}
+
+// What you really have equipped, for the menu's "wearing" strip (refreshed at most every 3 s).
+let wearingCache: { at: number; value: Record<string, string | null> } = { at: 0, value: {} };
+function wearing(): Record<string, string | null> {
+    if (Date.now() - wearingCache.at < 3000) return wearingCache.value;
+    const w = overrides();
+    const real = (getter: string) => {
+        try {
+            return equipped(getter);
+        } catch {
+            return null;
+        }
+    };
+    wearingCache = {
+        at: Date.now(),
+        value: { skin: w.skin ?? real("get_Skin"), gliderSkin: w.gliderSkin ?? real("get_GliderSkin"), hookSkin: w.hookSkin ?? real("get_HookSkin"), trail: w.trail ?? real("get_Trail") },
+    };
+    return wearingCache.value;
 }
 
 function json(body: unknown, status = 200): Response {
@@ -334,6 +356,16 @@ function lines(value: unknown): string[] {
 async function route(req: Request): Promise<Response> {
     if (req.method === "GET" && (req.path === "/" || req.path === "/index.html")) return { type: "text/html; charset=utf-8", body: PAGE };
     if (req.method === "GET" && req.path === "/api/state") return json(state());
+    if (req.method === "GET" && req.path.startsWith("/thumb/")) {
+        // /thumb/<kind>/<id>.png
+        const [, , kind, file] = req.path.split("/");
+        const id = decodeURIComponent((file ?? "").replace(/\.png$/, ""));
+        const png = await thumbnail(kind as ThumbKind, id).catch(e => {
+            log(`Thumbnail ${kind}/${id} failed: ${e}`);
+            return null;
+        });
+        return png ? { type: "image/png", body: "", bytes: png, cache: 86400 } : { status: 404, body: "no picture" };
+    }
     if (req.method === "GET" && req.path === "/api/wardrobe") return json(await Il2Cpp.perform(() => catalog(log)));
     if (req.method === "GET" && req.path === "/api/media") return json({ ...looksMedia(), icons: await Il2Cpp.perform(() => iconCatalog()) });
 
@@ -472,6 +504,7 @@ Il2Cpp.perform(async () => {
         if (settings.extraTrails?.length) setExtraTrails(settings.extraTrails, log);
     });
     step("looks", () => startLooks(settings.looks, FOLDERS, log));
+    step("thumbnails", () => startThumbs(`${DATA_DIR}/.thumbnails`, log));
     step("music", () => startMusic(FOLDERS.music, settings.music, log));
     step("mods", () =>
         startMods(

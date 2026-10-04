@@ -1,5 +1,5 @@
 import "frida-il2cpp-bridge";
-import { dataController, gameClass } from "./game.js";
+import { dataController, gameClass, probeViews } from "./game.js";
 import { listMedia, loadMedia, MediaEntry, MediaPlayer } from "./media.js";
 import { sharedWith } from "./scanner.js";
 import { color, componentsIn, hsv, isAlive, keep, readVector3, typeOf, uclass, vector3 } from "./unity.js";
@@ -313,6 +313,8 @@ function hookProfilePicture(): void {
             // are tracked even with no custom picture, so picking one later updates them right away.
             onEnter(args) {
                 this.view = args[0];
+                this.probe = probeViews.has(args[0].toString());
+                if (this.probe) return; // our thumbnail maker, not something on screen
                 this.icon = isInit ? args[1] : NULL;
                 // Built-in icon swap: change the id before the game looks it up (only for your icon).
                 if (isInit && settings.pfpIcon && !settings.pfp && !args[1].isNull()) {
@@ -322,6 +324,7 @@ function hookProfilePicture(): void {
                 }
             },
             onLeave() {
+                if (this.probe) return;
                 try {
                     const view = new Il2Cpp.Object(this.view);
                     const key = view.handle.toString();

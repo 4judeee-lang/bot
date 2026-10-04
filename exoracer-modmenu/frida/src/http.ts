@@ -11,6 +11,8 @@ export interface Response {
     status?: number;
     type?: string;
     body: string;
+    bytes?: ArrayBuffer; // sent instead of body when set (images)
+    cache?: number; // seconds the browser may keep it
 }
 
 export type Handler = (req: Request) => Promise<Response> | Response;
@@ -92,13 +94,14 @@ async function handle(conn: SocketConnection, handler: Handler, log: (msg: strin
             log(`HTTP ${req.method} ${req.path} failed: ${(e as Error).stack ?? e}`);
             res = { status: 500, type: "application/json", body: JSON.stringify({ error: String((e as Error).message ?? e) }) };
         }
-        const body = utf8Encode(res.body);
+        const body = res.bytes ? Array.from(new Uint8Array(res.bytes)) : utf8Encode(res.body);
         const status = res.status ?? 200;
         const head =
             `HTTP/1.1 ${status} ${STATUS[status] ?? "OK"}\r\n` +
             `Content-Type: ${res.type ?? "text/plain; charset=utf-8"}\r\n` +
             `Content-Length: ${body.length}\r\n` +
-            "Cache-Control: no-store\r\nConnection: close\r\n\r\n";
+            (res.cache ? `Cache-Control: max-age=${res.cache}\r\n` : "Cache-Control: no-store\r\n") +
+            "Connection: close\r\n\r\n";
         await conn.output.writeAll(utf8Encode(head).concat(body));
     } finally {
         await conn.close().catch(() => {});

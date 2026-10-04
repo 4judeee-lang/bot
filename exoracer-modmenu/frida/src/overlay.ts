@@ -197,10 +197,27 @@ function create(): void {
     const view = ObjC.classes.WKWebView.alloc().initWithFrame_configuration_([[0, 0], [width, height]], config);
     view.setAutoresizingMask_(2 | 16); // flexible width and height
     view.setValue_forKey_(ObjC.classes.NSNumber.numberWithBool_(0), "drawsBackground");
-    view.setWantsLayer_(1);
-    view.layer().setCornerRadius_(18);
-    view.layer().setMasksToBounds_(1);
-    w.setContentView_(view);
+
+    // Real macOS glass behind the page: blurs the game through the menu's see-through surfaces.
+    const fxClass = ObjC.classes.NSVisualEffectView;
+    if (fxClass) {
+        const fx = fxClass.alloc().initWithFrame_([[0, 0], [width, height]]);
+        fx.setMaterial_(13); // HUD window
+        fx.setBlendingMode_(0); // behind window
+        fx.setState_(1); // always active
+        fx.setAutoresizingMask_(2 | 16);
+        fx.setWantsLayer_(1);
+        fx.layer().setCornerRadius_(18);
+        fx.layer().setMasksToBounds_(1);
+        fx.addSubview_(view);
+        w.setContentView_(fx);
+        keep.push(fx);
+    } else {
+        view.setWantsLayer_(1);
+        view.layer().setCornerRadius_(18);
+        view.layer().setMasksToBounds_(1);
+        w.setContentView_(view);
+    }
     view.loadRequest_(ObjC.classes.NSURLRequest.requestWithURL_(ObjC.classes.NSURL.URLWithString_(`${url}?ingame=1`)));
 
     gameWindow.addChildWindow_ordered_(w, 1); // NSWindowAbove
@@ -246,4 +263,3 @@ export function revealFolder(path: string): void {
     });
 }
 
-export { web as overlayWebView };
