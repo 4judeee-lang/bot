@@ -1,0 +1,31 @@
+{
+  "name": "EggWorldMap",
+  "tree": {
+    "$className": "DataModel",
+    "ServerStorage": {
+      "WorldBuilder": {
+        "$path": "src/WorldBuilder"
+      }
+    },
+    "ReplicatedStorage": {
+      "WorldShared": {
+        "$path": "src/WorldShared"
+      }
+    },
+    "ServerScriptService": {
+      "WorldBootstrap": {
+        "$path": "src/Server/WorldBootstrap.server.luau"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "EnvironmentController": {
+          "$path": "src/Client/EnvironmentController.client.luau"
+        },
+        "ShowcaseCamera": {
+          "$path": "src/Client/ShowcaseCamera.client.luau"
+        }
+      }
+    }
+  }
+}
