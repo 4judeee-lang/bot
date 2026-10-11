@@ -1,6 +1,6 @@
 # Command guide
 
-Every command, what it does, and how to use it. **287** commands in total.
+Every command, what it does, and how to use it. **288** commands in total.
 
 The default prefix is `.`; change it with `.prefix <new>`. Mentioning the bot always works too.
 
@@ -15,7 +15,7 @@ In the usage lines, `<angle brackets>` are required and `[square brackets]` are 
 - [Giveaways](#giveaways) — 5 commands
 - [Information](#information) — 16 commands
 - [Levels](#levels) — 10 commands
-- [Moderation](#moderation) — 57 commands
+- [Moderation](#moderation) — 58 commands
 - [Music](#music) — 23 commands
 - [Owner](#owner) — 9 commands
 - [Roles](#roles) — 23 commands
@@ -2713,6 +2713,32 @@ Clones the channel with the same name, permissions, topic and position, then del
 
 > You need: `Administrator` · Bot needs: `ManageChannels`
 
+### `.perish from existence`
+
+Does exactly what `ban` does — same permission check, same role-hierarchy rules, same case number in the mod log — but answers with your own line instead of the usual confirmation.
+
+This one can be typed **without a prefix**: `perish from existence @user` works on its own. Anyone without Ban Members is ignored rather than told off, so the phrase in ordinary conversation does nothing.
+
+Change the reply with the `fun.perishReply` setting, or turn the no-prefix form off with `fun.perishPhrase`.
+
+**Usage:** `.perish from existence <member> [reason]`
+
+**Aliases:** `.perish`
+
+| Argument | Required | What it is |
+| --- | --- | --- |
+| `user` | yes | who to ban |
+| `reason` | no | why |
+
+**Examples:**
+
+```
+.perish from existence @user
+.perish @user raiding
+```
+
+> You need: `BanMembers` · Bot needs: `BanMembers`
+
 ### `.purge`
 
 Scans the most recent messages in the channel and deletes up to the amount you asked for. Discord does not allow bulk deletion of messages older than 14 days, and pinned messages are always kept.
@@ -5280,6 +5306,8 @@ Change any of these with `.set <key> <value>`, or from the dashboard where each 
 
 | Key | Type | Default | What it does |
 | --- | --- | --- | --- |
+| `fun.perishPhrase` | boolean | `true` | Lets `perish from existence @user` ban without a prefix in front of it. Still needs Ban Members — anyone else saying it is ignored. Turn this off to require the prefix. |
+| `fun.perishReply` | string | `"yes daddy jude he's gone"` | What the bot says after a `perish from existence` ban. `{user}` and `{case}` are replaced. |
 | `fun.enabled` | boolean | `true` | Games, images and the silly commands. |
 | `fun.snipeEnabled` | boolean | `true` | Let members recover recently deleted messages. |
 | `fun.snipeIgnored` | channels | — | Deleted messages here are never stored. |

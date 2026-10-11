@@ -710,7 +710,7 @@ test('list embeds number their rows and show the page counter', () => {
 
 /* ── end to end ──────────────────────────────────────────────────────── */
 
-const { handleMessage } = require('../src/lib/dispatcher');
+const { handleMessage, handlePhrase } = require('../src/lib/dispatcher');
 const { PermissionsBitField, Collection } = require('discord.js');
 
 group('end to end (mocked Discord)');
@@ -813,6 +813,28 @@ testAsync('a missing required argument shows the usage guide', async () => {
   assert.ok(description.includes('Missing required argument'), 'it says what is missing');
   assert.ok(description.includes('Usage:'), 'it shows the usage line');
   assert.ok(description.includes('help 8ball'), 'it points at the full guide');
+});
+
+testAsync('a phrase command runs with no prefix in front of it', async () => {
+  const { message } = mockMessage('perish from existence <@900000000000000001>');
+  const { command } = registry.resolve(tokenize(message.content));
+  assert.equal(command?.name, 'perish from existence', 'the three-word phrase resolves');
+  assert.equal(command.phrase, true, 'and it is marked as usable without a prefix');
+});
+
+testAsync('an ordinary command cannot be run without its prefix', async () => {
+  const { message, sent } = mockMessage('ban <@900000000000000001>');
+  const handled = await handlePhrase(mockClient, message);
+  assert.equal(handled, false, 'ban is not a phrase command, so nothing happens');
+  assert.equal(sent.length, 0, 'and nothing is said about it');
+});
+
+testAsync('a phrase from someone without permission is ignored silently', async () => {
+  const { message, sent } = mockMessage('perish from existence <@900000000000000001>');
+  message.member.permissions = new PermissionsBitField(0n); // an ordinary member
+  const handled = await handlePhrase(mockClient, message);
+  assert.equal(handled, false, 'it does not run');
+  assert.equal(sent.length, 0, 'and the bot does not heckle ordinary conversation');
 });
 
 testAsync('an unknown command is ignored rather than answered', async () => {

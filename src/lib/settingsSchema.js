@@ -857,6 +857,23 @@ const SETTINGS = {
   },
 
   /* ── Fun ─────────────────────────────────────────────────────────── */
+  'fun.perishPhrase': {
+    type: 'boolean',
+    default: true,
+    category: 'Fun',
+    label: 'Allow “perish from existence” without a prefix',
+    description:
+      'Lets `perish from existence @user` ban without a prefix in front of it. Still needs Ban Members — '
+      + 'anyone else saying it is ignored. Turn this off to require the prefix.',
+  },
+  'fun.perishReply': {
+    type: 'string',
+    default: "yes daddy jude he's gone",
+    category: 'Fun',
+    label: '“Perish” reply',
+    max: 2000,
+    description: 'What the bot says after a `perish from existence` ban. `{user}` and `{case}` are replaced.',
+  },
   'fun.enabled': {
     type: 'boolean',
     default: true,

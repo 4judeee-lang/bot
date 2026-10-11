@@ -157,10 +157,27 @@ async function handleMessage(client, message, prefix) {
 
   if (!command) return false;
 
+  return dispatch({ client, message, command, rest, prefix });
+}
+
+/**
+ * Run a command that has already been resolved.
+ *
+ * `quiet` suppresses the replies that explain a refusal. A phrase typed
+ * without a prefix is not necessarily aimed at the bot, so someone who may
+ * not run it, or who wrote something that does not parse, is just talking —
+ * answering them with an error would make the bot heckle ordinary
+ * conversation.
+ */
+async function dispatch({ client, message, command, rest, prefix, quiet = false }) {
   const ctx = new Context({ client, message, command, prefix });
+
+  if (quiet && check(ctx)) return false;
+
   const parsed = await parsePrefixArgs(command, rest, { client, guild: message.guild });
 
   if (!parsed.ok) {
+    if (quiet) return false;
     const spec = parsed.missing ?? parsed.invalid;
     const note = parsed.missing
       ? `Missing required argument **${spec.name}**.`
@@ -173,6 +190,20 @@ async function handleMessage(client, message, prefix) {
   ctx.rawArgs = rest;
   await run(ctx);
   return true;
+}
+
+/**
+ * Commands marked `phrase: true` can also be typed as plain English, with no
+ * prefix in front of them. Nothing else is reachable this way.
+ */
+async function handlePhrase(client, message) {
+  const content = message.content.trim();
+  if (!content) return false;
+
+  const { command, rest } = client.registry.resolve(tokenize(content));
+  if (!command?.phrase) return false;
+
+  return dispatch({ client, message, command, rest, prefix: '', quiet: true });
 }
 
 /** Entry point for slash commands. */
@@ -193,4 +224,4 @@ async function handleInteraction(client, interaction) {
   return run(ctx);
 }
 
-module.exports = { handleMessage, handleInteraction, isOwner, check, cooldowns };
+module.exports = { handleMessage, handlePhrase, handleInteraction, isOwner, check, cooldowns };

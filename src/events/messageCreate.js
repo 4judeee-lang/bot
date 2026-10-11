@@ -1,7 +1,7 @@
 'use strict';
 
 const store = require('../lib/db');
-const { handleMessage } = require('../lib/dispatcher');
+const { handleMessage, handlePhrase } = require('../lib/dispatcher');
 const { themeFor } = require('../lib/embeds');
 const levels = require('../modules/levels');
 const automod = require('../modules/automod');
@@ -44,7 +44,8 @@ module.exports = {
 
     const isCommand = message.content.startsWith(prefix)
       ? await handleMessage(client, message, prefix)
-      : false;
+      // A few commands can be typed as a plain phrase, with no prefix.
+      : await handlePhrase(client, message);
 
     if (isCommand) return;
 
