@@ -727,6 +727,7 @@ function mockMessage(content, { guildId = 'e2e', userId = 'u-e2e' } = {}) {
     channels: { cache: new Collection() },
     roles: { cache: new Collection(), everyone: { id: guildId } },
     members: { me: { permissions: new PermissionsBitField(PermissionsBitField.All), roles: { highest: { comparePositionTo: () => 1 } } }, cache: new Collection(), fetch: async () => null },
+    bans: { fetch: async () => null, create: async () => ({}) },
     iconURL: () => null,
   };
 
@@ -820,6 +821,22 @@ testAsync('a phrase command runs with no prefix in front of it', async () => {
   const { command } = registry.resolve(tokenize(message.content));
   assert.equal(command?.name, 'perish from existence', 'the three-word phrase resolves');
   assert.equal(command.phrase, true, 'and it is marked as usable without a prefix');
+});
+
+testAsync('perish bans, says its line, then posts the receipt', async () => {
+  const { message, sent } = mockMessage('perish from existence <@900000000000000001>');
+  const handled = await handlePhrase(mockClient, message);
+
+  assert.equal(handled, true, 'the phrase ran');
+  assert.equal(sent.length, 2, 'the line, then the embed');
+
+  assert.equal(sent[0].content, "yes daddy jude he's gone", 'the line goes out as plain text');
+  assert.deepEqual(sent[0].allowedMentions.parse, [], 'and cannot be turned into a ping');
+
+  const embed = sent[1].embeds[0].toJSON();
+  assert.ok(embed.author.name.endsWith(' was banned'), `names who went: ${embed.author.name}`);
+  const names = embed.fields.map((field) => field.name);
+  assert.deepEqual(names, ['Member', 'Moderator', 'Case', 'Reason']);
 });
 
 testAsync('an ordinary command cannot be run without its prefix', async () => {

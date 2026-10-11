@@ -3,6 +3,7 @@
 const store = require('../../lib/db');
 const mod = require('../../lib/moderation');
 const { truncate } = require('../../lib/util');
+const emojis = require('../../lib/emojis');
 
 module.exports = [
   {
@@ -54,13 +55,32 @@ module.exports = [
         return ctx.error(`Could not ban **${user.tag}** — ${error.message}`);
       }
 
-      // Plain text rather than an embed — the whole point is the one line.
+      // The line first, on its own, as plain text — an embed would bury it.
       // Mentions are stripped so the reply cannot be turned into a ping.
       const reply = store.getSetting(ctx.guild.id, 'fun.perishReply')
         .replace('{case}', String(caseNumber))
         .replace('{user}', user.tag);
 
-      return ctx.send({ content: truncate(reply, 2000), allowedMentions: { parse: [] } });
+      await ctx.send({ content: truncate(reply, 2000), allowedMentions: { parse: [] } });
+
+      // Then the receipt: who went, who did it, and the case to look up.
+      return ctx.send({
+        embeds: [
+          ctx.embed({
+            color: ctx.theme.errorColor,
+            author: { name: `${user.tag} was banned`, iconURL: user.displayAvatarURL?.({ size: 128 }) },
+            thumbnail: user.displayAvatarURL?.({ size: 256 }),
+            fields: [
+              { name: 'Member', value: `${user} ${emojis.dot} \`${user.id}\``, inline: false },
+              { name: 'Moderator', value: `${ctx.user}`, inline: true },
+              { name: 'Case', value: `#${caseNumber}`, inline: true },
+              { name: 'Reason', value: truncate(reason, 1000), inline: false },
+            ],
+            timestamp: true,
+          }),
+        ],
+        allowedMentions: { parse: [] },
+      });
     },
   },
 ];

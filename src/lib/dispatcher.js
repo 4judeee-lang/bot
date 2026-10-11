@@ -45,7 +45,15 @@ const MODULE_TOGGLES = {
  * Shared gatekeeping for both prefix and slash invocations.
  * Returns an error string, or null when the command may run.
  */
-function check(ctx) {
+/**
+ * Decide whether `ctx` may run, returning the reason it may not.
+ *
+ * Starting a cooldown is a side effect, so `consume: false` asks the same
+ * question without it — needed by anything that has to test eligibility
+ * before deciding whether to run at all, since checking twice would
+ * otherwise trip the command's own cooldown.
+ */
+function check(ctx, { consume = true } = {}) {
   const { command, guild, member, user, channel } = ctx;
 
   if (isBlacklisted(user.id)) return 'You are blacklisted from using this bot.';
@@ -92,7 +100,7 @@ function check(ctx) {
     if (remaining > 0) {
       return `Slow down — try again in **${(remaining / 1000).toFixed(1)}s**.`;
     }
-    cooldowns.set(key, Date.now() + command.cooldown * 1000);
+    if (consume) cooldowns.set(key, Date.now() + command.cooldown * 1000);
   }
 
   return null;
@@ -172,7 +180,7 @@ async function handleMessage(client, message, prefix) {
 async function dispatch({ client, message, command, rest, prefix, quiet = false }) {
   const ctx = new Context({ client, message, command, prefix });
 
-  if (quiet && check(ctx)) return false;
+  if (quiet && check(ctx, { consume: false })) return false;
 
   const parsed = await parsePrefixArgs(command, rest, { client, guild: message.guild });
 
