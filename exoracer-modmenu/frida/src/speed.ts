@@ -58,18 +58,26 @@ function blockUploads(): string | null {
         if (!t.address) return `Can't block run uploads safely (${t.problem}), so the speed stays at 1×.`;
         found.push(t.address);
     }
+    // Another mod (your own upload blocker, say) may already have replaced some of these. That
+    // path is blocked already: leave it exactly as it is, never touch or undo someone else's hook.
     const done: NativePointer[] = [];
+    let theirs = 0;
     try {
         for (const address of found) {
-            replaceWithConstant(address, ptr(0)); // a no-op: nothing is sent
-            done.push(address);
+            try {
+                replaceWithConstant(address, ptr(0)); // a no-op: nothing is sent
+                done.push(address);
+            } catch (e) {
+                if (!/already replaced/i.test(String((e as Error).message ?? e))) throw e;
+                theirs++;
+            }
         }
     } catch (e) {
-        for (const address of done) revertTarget(address);
+        for (const address of done) revertTarget(address); // only ever our own
         return `Couldn't block run uploads (${(e as Error).message}), so the speed stays at 1×.`;
     }
     uploadsBlocked = true;
-    log(`Speed: blocked ${found.length} run/race upload paths until the game restarts`);
+    log(`Speed: blocked ${done.length} run/race upload paths until the game restarts` + (theirs ? `; ${theirs} were already replaced by another mod and left as they are` : ""));
     return null;
 }
 
