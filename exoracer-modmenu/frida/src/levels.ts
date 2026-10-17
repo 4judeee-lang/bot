@@ -369,11 +369,10 @@ export function deleteCopy(file: string): void {
 }
 
 export function levelsStatus() {
-    const present = new Set(listFiles(dir));
     const info = last && (!last.name || !last.author) ? levelInfo(last.id) : null;
     return {
         last: last ? { ...last, name: last.name || info?.name || "Untitled level", author: last.author || info?.author || "" } : null,
-        copies: host.copies().map(c => ({ ...c, missing: !present.has(c.file) })),
+        copies: host.copies().map(c => ({ ...c, missing: !exists(`${dir}/${c.file}`) })),
         guard: guardStatus,
         blocked,
         dir,

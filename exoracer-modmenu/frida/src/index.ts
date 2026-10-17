@@ -16,7 +16,7 @@ import { startThumbs, thumbnail, ThumbKind } from "./thumbs.js";
 import { PAGE } from "./ui.js";
 import { catalog, getExtraTrails, overrides, setExtraTrails, setOverride, Slot, SLOTS, traceEquipFlow } from "./wardrobe.js";
 
-const VERSION = "0.8.1";
+const VERSION = "0.8.2";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)

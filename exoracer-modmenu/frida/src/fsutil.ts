@@ -1,3 +1,5 @@
+import ObjC from "frida-objc-bridge";
+
 // Small file-system helpers Frida doesn't provide: listing a folder and creating one, via libc.
 
 const libc = Process.platform === "darwin" ? null : Process.findModuleByName("libc.so.6");
@@ -38,7 +40,39 @@ function entryName(entry: NativePointer): string | null {
     }
 }
 
+/**
+ * macOS: NSFileManager, which gives proper names on every macOS version (reading libc's dirent by
+ * hand proved unreliable there). Null when the Objective-C runtime isn't available.
+ */
+function listWithFoundation(dir: string, wantDirs: boolean): string[] | null {
+    if (!ObjC.available) return null;
+    const pool = ObjC.classes.NSAutoreleasePool.alloc().init();
+    try {
+        const fm = ObjC.classes.NSFileManager.defaultManager();
+        const items = fm.contentsOfDirectoryAtPath_error_(dir, NULL) as ObjC.Object | null;
+        if (!items || items.handle.isNull()) return [];
+        const isDir = Memory.alloc(8);
+        const names: string[] = [];
+        const n = items.count() as number;
+        for (let i = 0; i < n; i++) {
+            const name = (items.objectAtIndex_(i) as ObjC.Object).toString();
+            if (!name || name.startsWith(".")) continue;
+            isDir.writeU8(0);
+            if (!fm.fileExistsAtPath_isDirectory_(`${dir}/${name}`, isDir)) continue;
+            if ((isDir.readU8() !== 0) !== wantDirs) continue;
+            names.push(name);
+        }
+        return names.sort(naturalCompare);
+    } catch {
+        return null;
+    } finally {
+        pool.release();
+    }
+}
+
 function list(dir: string, wantDirs: boolean): string[] {
+    const viaFoundation = listWithFoundation(dir, wantDirs);
+    if (viaFoundation) return viaFoundation;
     if (!opendir || !readdir || !closedir) return [];
     const handle = opendir(Memory.allocUtf8String(dir)) as NativePointer;
     if (handle.isNull()) return [];
