@@ -89,18 +89,56 @@ function myUser(): { id: string | null; name: string | null } {
     }
 }
 
-/** The author's account id, from the game's loaded level list (one heap scan, only when copying). */
-function authorIdOf(levelId: string): string | null {
+interface LevelInfo {
+    name: string;
+    author: string;
+    authorId: string | null;
+}
+const infoCache = new Map<string, LevelInfo>();
+const infoMisses = new Map<string, number>(); // level id → when we last looked and didn't find it
+
+/**
+ * A level's real name and author. Downloaded level files often leave these empty; the game keeps
+ * them on its Level objects (the lists you browse). One heap scan per level, cached.
+ */
+function levelInfo(levelId: string): LevelInfo | null {
+    if (infoCache.has(levelId)) return infoCache.get(levelId)!;
+    if (Date.now() - (infoMisses.get(levelId) ?? 0) < 15000) return null;
+    let info: LevelInfo | null = null;
     const klass = gameClass("NyanStudio.Level");
-    if (!klass) return null;
     try {
-        for (const level of Il2Cpp.gc.choose(klass)) {
+        for (const level of klass ? Il2Cpp.gc.choose(klass) : []) {
             if (str(level, "id") !== levelId) continue;
             const author = level.tryField<Il2Cpp.Object>("author")?.value;
-            if (author && !author.isNull()) return str(author, "id");
+            const hasAuthor = !!author && !author.isNull();
+            info = { name: str(level, "name") ?? "", author: hasAuthor ? str(author!, "displayName") ?? "" : "", authorId: hasAuthor ? str(author!, "id") : null };
+            break;
         }
     } catch {}
-    return null;
+    if (info) infoCache.set(levelId, info);
+    else infoMisses.set(levelId, Date.now());
+    return info;
+}
+
+function exists(path: string): boolean {
+    try {
+        new File(path, "rb").close();
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function describe(exceptionSlot: NativePointer): string {
+    const p = exceptionSlot.readPointer();
+    if (p.isNull()) return "";
+    try {
+        const e = new Il2Cpp.Object(p);
+        const m = e.tryMethod<Il2Cpp.String>("get_Message")?.invoke();
+        return `${e.class.name}: ${m && !m.isNull() ? m.content : ""}`;
+    } catch {
+        return "an error";
+    }
 }
 
 function uuid(): string {
@@ -131,8 +169,8 @@ function watchLevelLoads(): void {
                 last = {
                     id,
                     version: data.field<number>("version").value,
-                    name: str(data, "levelName") ?? id,
-                    author: str(data, "authorDisplayName") ?? "",
+                    name: str(data, "levelName") || "",
+                    author: str(data, "authorDisplayName") || "",
                     nova: !!data.field<boolean>("novaLevel").value,
                 };
             } catch {}
@@ -213,9 +251,12 @@ export function copyLastLevel(): CopiedLevel {
     }
 
     const me = myUser();
-    const authorId = authorIdOf(last.id);
-    const mine = (!!authorId && authorId === me.id) || (!authorId && !!me.name && me.name === last.author);
-    const name = mine ? last.name : `Copy of ${last.name}`;
+    const info = levelInfo(last.id);
+    const authorId = info?.authorId ?? null;
+    const levelName = info?.name || last.name || "Untitled level";
+    const authorName = info?.author || last.author;
+    const mine = (!!authorId && authorId === me.id) || (!authorId && !!me.name && me.name === authorName);
+    const name = mine ? levelName : `Copy of ${levelName}`;
     const copyId = uuid();
 
     const localLevel = localLevelClass.alloc();
@@ -235,7 +276,7 @@ export function copyLastLevel(): CopiedLevel {
     localLevel.field("privateLevel").value = true;
     // Credit the original author, so the game itself also knows this isn't your level.
     setStr(localLevel, "authorId", authorId);
-    setStr(localLevel, "authorDisplayName", last.author || null);
+    setStr(localLevel, "authorDisplayName", authorName || null);
     setStr(levelData, "id", copyId);
     levelData.field("version").value = 1;
 
@@ -249,16 +290,35 @@ export function copyLastLevel(): CopiedLevel {
     const ext = sample.startsWith("x") && sample.length > 1 ? sample.slice(1) : ".exolevel";
     let file = `${safeName(name)}${ext}`;
     for (let i = 2; listFiles(dir).includes(file); i++) file = `${safeName(name)} ${i}${ext}`;
+    const save = S.method<boolean>("Save", 3).overload("NyanStudio.LevelShareData", "System.String", "System.Exception&");
+    const target = `${dir}/${file}`;
+    const before = new Set(listFiles(dir));
     exception.writePointer(NULL);
-    const ok = S.method<boolean>("Save", 3).overload("NyanStudio.LevelShareData", "System.String", "System.Exception&").invoke(share, Il2Cpp.string(`${dir}/${file}`), exception);
-    if (!ok || !exception.readPointer().isNull()) throw new Error("the game couldn't write the level file");
+    const ok = save.invoke(share, Il2Cpp.string(target), exception);
+    log(`Levels: Save(${target}) → ${ok}${describe(exception) ? " " + describe(exception) : ""} (share files look like ${sample})`);
+    if (!exists(target)) {
+        // The game may write somewhere of its own (or add its own extension): find the file and move it here.
+        const appeared = listFiles(dir).filter(n => !before.has(n));
+        if (appeared.length) {
+            file = appeared[0];
+        } else {
+            const gamePath = S.method<Il2Cpp.String>("GetShareFilePath", 1).invoke(Il2Cpp.string(safeName(name))).content ?? "";
+            exception.writePointer(NULL);
+            const ok2 = gamePath ? save.invoke(share, Il2Cpp.string(gamePath), exception) : false;
+            log(`Levels: retry Save(${gamePath}) → ${ok2}${describe(exception) ? " " + describe(exception) : ""}`);
+            if (!gamePath || !exists(gamePath)) throw new Error(`the game didn't write the level file (${describe(exception) || "no error given"}). Please send exomenu.log`);
+            const out = new File(target, "wb");
+            out.write(File.readAllBytes(gamePath));
+            out.close();
+        }
+    }
 
     const copy: CopiedLevel = {
         file,
         name,
         sourceId: last.id,
         sourceVersion: last.version,
-        author: last.author,
+        author: authorName,
         authorId,
         mine,
         copyId,
@@ -266,7 +326,7 @@ export function copyLastLevel(): CopiedLevel {
         date: new Date().toISOString(),
     };
     host.saveCopies([copy, ...host.copies()]);
-    log(`Levels: copied "${last.name}" (${last.id} v${last.version}) to ${file}${mine ? " (your own level)" : ""}`);
+    log(`Levels: copied "${levelName}" (${last.id} v${last.version}) to ${file}${mine ? " (your own level)" : ""}`);
     return copy;
 }
 
@@ -310,8 +370,9 @@ export function deleteCopy(file: string): void {
 
 export function levelsStatus() {
     const present = new Set(listFiles(dir));
+    const info = last && (!last.name || !last.author) ? levelInfo(last.id) : null;
     return {
-        last,
+        last: last ? { ...last, name: last.name || info?.name || "Untitled level", author: last.author || info?.author || "" } : null,
         copies: host.copies().map(c => ({ ...c, missing: !present.has(c.file) })),
         guard: guardStatus,
         blocked,
