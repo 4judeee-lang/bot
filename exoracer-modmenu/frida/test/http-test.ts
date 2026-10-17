@@ -29,6 +29,7 @@ const s: any = {
         features: [{ key: "example-hello.js:hello", mod: "example-hello.js", name: "Say hello", description: "Logs a message.", enabled: false, settings: [{ id: "text", label: "Message", type: "text", default: "hi" }, { id: "loud", label: "Shout", type: "toggle", default: false }], values: { text: "hi", loud: false } }],
     },
     unlock: { status: "Off.", skipped: [] },
+    speed: { multiplier: 1, uploadsBlocked: false, message: "Normal speed.", min: 0.1, max: 4 },
     levels: { last: { id: "lvl1", version: 3, name: "Sky Loop", author: "speedy", nova: false }, copies: [] as any[], guard: "on", blocked: [], dir: "/x/levels" },
 };
 const wardrobe = { items: { skin: ["edm", "mummy", "bee_costume", "ninja"], gliderSkin: ["rocket"], hookSkin: ["pearl_hook"], trail: ["default", "black_and_white", "fire"] }, owned: { skin: ["mummy"], gliderSkin: ["rocket"], hookSkin: ["pearl_hook"], trail: ["default"] } };
@@ -97,6 +98,10 @@ serve(7777, req => {
         case "/api/wardrobe":
             if (b.id) s.wardrobe[b.slot] = b.id;
             else delete s.wardrobe[b.slot];
+            break;
+        case "/api/speed":
+            s.speed.multiplier = b.value; s.speed.uploadsBlocked = s.speed.uploadsBlocked || b.value !== 1;
+            s.speed.message = b.value === 1 ? "Normal speed." : b.value + "× speed. Run uploads and live races are off until you restart the game.";
             break;
         case "/api/levels":
             if (b.action === "copy") s.levels.copies.unshift({ file: "Copy of Sky Loop.exolevel", name: "Copy of Sky Loop", author: "speedy", mine: false, date: "2026-10-17T10:00:00Z", missing: false });

@@ -7,6 +7,7 @@ import { iconCatalog, LOOKS_DEFAULTS, LooksSettings, looksMedia, looksNotes, sta
 import { modsStatus, reloadMods, SavedModState, setFeature, setFeatureValue, setModEnabled, startMods, hasFeature, featureEnabled } from "./mods.js";
 import { copyLastLevel, CopiedLevel, deleteCopy, levelsStatus, openInEditor, startLevels } from "./levels.js";
 import { installSafeCalls } from "./safecall.js";
+import { setSpeed, speedStatus, startSpeed } from "./speed.js";
 import { setCrashMarker, takeCrashMarker } from "./media.js";
 import { MUSIC_DEFAULTS, MusicSettings, musicStatus, pause, play, skip, startMusic, toggle as toggleMusic, updateMusic } from "./music.js";
 import { replaceWithConstant, revertTarget } from "./native.js";
@@ -16,7 +17,7 @@ import { startThumbs, thumbnail, ThumbKind } from "./thumbs.js";
 import { PAGE } from "./ui.js";
 import { catalog, getExtraTrails, overrides, setExtraTrails, setOverride, Slot, SLOTS, traceEquipFlow } from "./wardrobe.js";
 
-const VERSION = "0.8.2";
+const VERSION = "0.9.0";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)
@@ -272,13 +273,29 @@ const ACTIONS: { id: string; label: string; group: string }[] = [
     { id: "music.prev", label: "Previous song", group: "Music" },
     { id: "fps.toggle", label: "Unlock FPS on / off", group: "Performance" },
     { id: "level.copy", label: "Copy the level I last played", group: "Levels" },
+    { id: "speed.up", label: "Speed up", group: "Speed" },
+    { id: "speed.down", label: "Slow down", group: "Speed" },
+    { id: "speed.reset", label: "Normal speed", group: "Speed" },
 ];
+
+const SPEED_STEPS = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
+function speedStep(direction: number): number {
+    const now = speedStatus().multiplier;
+    if (direction > 0) return SPEED_STEPS.find(s => s > now + 1e-4) ?? SPEED_STEPS[SPEED_STEPS.length - 1];
+    return [...SPEED_STEPS].reverse().find(s => s < now - 1e-4) ?? SPEED_STEPS[0];
+}
 
 async function runAction(action: string): Promise<void> {
     log(`Keybind: ${action}`);
     switch (action) {
         case "menu":
             return toggleFromAgent();
+        case "speed.up":
+            return setSpeed(speedStep(1));
+        case "speed.down":
+            return setSpeed(speedStep(-1));
+        case "speed.reset":
+            return setSpeed(1);
         case "level.copy":
             return void (await Il2Cpp.perform(() => copyLastLevel(), "main"));
         case "own.toggle":
@@ -333,6 +350,7 @@ function state() {
         mods: modsStatus(),
         notes: [...startupNotes, ...looksNotes()],
         levels: levelsStatus(),
+        speed: speedStatus(),
         unlock: { status: unlockStatus, skipped: lastScan?.skipped ?? [] },
     };
 }
@@ -475,6 +493,9 @@ async function route(req: Request): Promise<Response> {
             saveSettings();
             return json(state());
         }
+        case "/api/speed":
+            await setSpeed(Number(body.value));
+            return json(state());
         case "/api/levels": {
             const file = String(body.file ?? "");
             if (body.action === "copy") {
@@ -579,6 +600,7 @@ Il2Cpp.perform(async () => {
         }
         startLooks(settings.looks, FOLDERS, log);
     });
+    step("speed", () => startSpeed(log));
     step("levels", () =>
         startLevels(
             FOLDERS.levels,

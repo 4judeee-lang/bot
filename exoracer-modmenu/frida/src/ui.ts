@@ -196,6 +196,7 @@ export const PAGE = `<!doctype html>
     folder: "<path d='M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/>",
     refresh: "<path d='M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7'/>",
     flag: "<path d='M5 21V4M5 4h11l-2 4 2 4H5'/>",
+    gauge: "<path d='M4 18a8 8 0 1 1 16 0'/><path d='m12 18 4-6'/>",
     copy: "<rect x='9' y='9' width='11' height='11' rx='2'/><path d='M5 15V6a2 2 0 0 1 2-2h9'/>"
   };
   function icon(name) { return "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'>" + ICON[name] + "</svg>"; }
@@ -211,6 +212,7 @@ export const PAGE = `<!doctype html>
     { id: "Profile", icon: "user", sub: "Profile picture and icon." },
     { group: "Fun" },
     { id: "Music", icon: "music", sub: "Your songs, in the game." },
+    { id: "Speed", icon: "gauge", sub: "Slow the game down (or speed it up) to practice." },
     { id: "Mods", icon: "puzzle", sub: "Add-ons from the mods folder." },
     { id: "Levels", icon: "flag", sub: "Copy levels into your editor to learn from them." },
     { group: "System" },
@@ -423,6 +425,18 @@ export const PAGE = `<!doctype html>
     return html;
   }
 
+  var SPEEDS = [0.1, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
+  function speedTab() {
+    var S = state.speed || { multiplier: 1, uploadsBlocked: false, message: "", min: 0.1, max: 4 };
+    var big = "<div class='row'><div style='font:700 44px/1 var(--display);min-width:130px'>" + S.multiplier + "×</div><div class='grow desc' style='margin:0'>" + esc(S.message) + "</div>" + (S.multiplier !== 1 ? "<button class='btn ghost small' data-speed='1'>Back to 1×</button>" : "") + "</div>";
+    var presets = "<div class='row' style='margin-top:14px'>" + SPEEDS.map(function (v) { return "<button class='btn small" + (v === S.multiplier ? "" : " ghost") + "' data-speed='" + v + "'>" + v + "×</button>"; }).join("") + "</div>";
+    var slide = "<div class='field'><label for='speed-range'>Custom</label><input type='range' id='speed-range' min='" + S.min + "' max='" + S.max + "' step='0.05' value='" + S.multiplier + "' data-range='speed-range'><output>" + S.multiplier + "</output></div>";
+    var html = card("Speed multiplier", "", "", big + presets + slide);
+    html += card(S.uploadsBlocked ? "Run uploads are off <span class='tag warn'>until restart</span>" : "Before you change the speed", "Changing the speed is for practice. The first time you do, ExoMenu turns off everything that sends your runs to leaderboards, ranked and live races (and your live position in races) until you restart the game, so a slowed-down run can't count. If any of those can't be turned off safely, the speed stays at 1×.");
+    html += card("Keybinds", "Speed up, Slow down and Normal speed can go on keys in Keybinds.", "<button class='btn ghost small' data-goto='Keybinds'>Open Keybinds</button>");
+    return html;
+  }
+
   function levelsTab() {
     var L = state.levels || { copies: [], blocked: [] }, last = L.last;
     var lastBody = last ? "<div class='row'><div class='grow'><div class='title'>" + esc(last.name) + (last.nova ? " <span class='tag'>Nova</span>" : "") + "</div><div class='desc'>" + (last.author ? "by " + esc(last.author) + " · " : "") + "the last level you played</div></div><button class='btn' data-level='copy'>" + icon("copy") + "Copy level</button></div>"
@@ -471,7 +485,7 @@ export const PAGE = `<!doctype html>
   }
 
   // ── render ─────────────────────────────────────────────────────────────────────────
-  var TABS = { Home: home, Wardrobe: wardrobeTab, Trails: trailsTab, Character: characterTab, Backgrounds: backgroundsTab, Profile: profileTab, Music: musicTab, Mods: modsTab, Levels: levelsTab, Keybinds: keybindsTab, Settings: settingsTab, Tools: toolsTab };
+  var TABS = { Home: home, Wardrobe: wardrobeTab, Trails: trailsTab, Character: characterTab, Backgrounds: backgroundsTab, Profile: profileTab, Music: musicTab, Mods: modsTab, Speed: speedTab, Levels: levelsTab, Keybinds: keybindsTab, Settings: settingsTab, Tools: toolsTab };
   function badge(id) {
     if (!state) return false;
     var s = state.settings;
@@ -481,6 +495,7 @@ export const PAGE = `<!doctype html>
     if (id === "Backgrounds") return !!s.looks.background;
     if (id === "Profile") return !!(s.looks.pfp || s.looks.pfpIcon);
     if (id === "Music") return state.music.playing;
+    if (id === "Speed") return !!state.speed && state.speed.multiplier !== 1;
     if (id === "Mods") return state.mods.features.some(function (f) { return f.enabled; });
     return false;
   }
@@ -495,7 +510,7 @@ export const PAGE = `<!doctype html>
     if (html !== lastNav) { $("nav").innerHTML = html; lastNav = html; }
   }
   function searchAll(q) {
-    var index = [["Home", "own every skin rainbow name background music fps quick wearing"], ["Wardrobe", "wear skins glider hook trail own every skin owned outfit"], ["Trails", "extra trails multiple stack"], ["Character", "name colour color rainbow custom skin image gif"], ["Backgrounds", "background animated gif frames tint zoom wallpaper"], ["Profile", "profile picture pfp icon avatar"], ["Music", "music songs play volume shuffle repeat wav mp3"], ["Mods", "mods plugins javascript addons"], ["Levels", "copy level editor import custom levels"], ["Keybinds", "keys keybinds shortcuts hotkeys"], ["Settings", "theme colour menu size fps performance about"], ["Tools", "shop dump record fix problem"]];
+    var index = [["Home", "own every skin rainbow name background music fps quick wearing"], ["Wardrobe", "wear skins glider hook trail own every skin owned outfit"], ["Trails", "extra trails multiple stack"], ["Character", "name colour color rainbow custom skin image gif"], ["Backgrounds", "background animated gif frames tint zoom wallpaper"], ["Profile", "profile picture pfp icon avatar"], ["Music", "music songs play volume shuffle repeat wav mp3"], ["Mods", "mods plugins javascript addons"], ["Levels", "copy level editor import custom levels"], ["Speed", "speed speedhack multiplier slow motion practice timescale"], ["Keybinds", "keys keybinds shortcuts hotkeys"], ["Settings", "theme colour menu size fps performance about"], ["Tools", "shop dump record fix problem"]];
     var hits = index.filter(function (e) { return (e[0] + " " + e[1]).toLowerCase().indexOf(q) >= 0; }).map(function (e) { return e[0]; });
     return hits.length ? card("Results for “" + esc(q) + "”", "", "", "<div class='row'>" + hits.map(function (h) { return "<button class='btn ghost small' data-goto='" + h + "'>" + h + "</button>"; }).join("") + "</div>") : "<div class='empty'>Nothing matches “" + esc(q) + "”.</div>";
   }
@@ -558,6 +573,7 @@ export const PAGE = `<!doctype html>
     if (d.mod) { var m = state.mods.mods.filter(function (x) { return x.file === d.mod; })[0]; return post("/api/mods", { action: "mod", file: d.mod, on: !(m && m.enabled) }); }
     if (d.modfeat) { var f = state.mods.features.filter(function (x) { return x.key === d.modfeat; })[0]; return post("/api/mods", { action: "feature", key: d.modfeat, on: !(f && f.enabled) }, null, function () { f.enabled = !f.enabled; }); }
     if (d.modval && d.type === "toggle") { var ff = state.mods.features.filter(function (x) { return x.key === d.modval; })[0]; var nv = !(ff && ff.values[d.id]); return post("/api/mods", { action: "value", key: d.modval, id: d.id, value: nv }, null, function () { ff.values[d.id] = nv; }); }
+    if (d.speed) { var sv = Number(d.speed); return post("/api/speed", { value: sv }, sv === 1 ? "Normal speed" : sv + "× speed", function (s) { if (s.speed) s.speed.multiplier = sv; }); }
     if (d.level) {
       var okText = { copy: "Copied! Open the level editor, then click Open in editor.", open: "Opened in your editor", delete: "Removed" }[d.level];
       return post("/api/levels", { action: d.level, file: d.file }, okText || null);
@@ -623,6 +639,7 @@ export const PAGE = `<!doctype html>
     backgroundScale: function (v) { return lookPatch({ backgroundScale: v }); },
     backgroundFps: function (v) { return lookPatch({ backgroundFps: v }); },
     pfpFps: function (v) { return lookPatch({ pfpFps: v }); },
+    "speed-range": function (v) { return post("/api/speed", { value: v }, v + "× speed", function (s) { if (s.speed) s.speed.multiplier = v; }); },
     "music-volume": function (v) { return post("/api/music", { action: "settings", settings: { volume: v } }, null, function (s) { s.settings.music.volume = v; }); },
     "ui-width": function (v) { return post("/api/ui", { width: v, height: state.settings.ui.height }, null, function (s) { s.settings.ui.width = v; }); },
     "ui-height": function (v) { return post("/api/ui", { width: state.settings.ui.width, height: v }, null, function (s) { s.settings.ui.height = v; }); }
