@@ -552,7 +552,7 @@ export const PAGE = `<!doctype html>
       case "bg-tint-reset": return lookPatch({ backgroundTint: "#ffffff" });
       case "mods-reload": return post("/api/mods", { action: "reload" }, "Mods reloaded");
       case "save-fps": return post("/api/settings", { fpsTarget: Number($("fps-target").value) || 0 }, "Saved");
-      case "dump": return post("/api/dump", {}, "Dump files written");
+      case "dump": return post("/api/dump", {}, "Dump files written (including levels-dump.txt)");
       case "trace": return post("/api/trace", {}, "Recording: equip a skin and a trail you own now");
     }
   });

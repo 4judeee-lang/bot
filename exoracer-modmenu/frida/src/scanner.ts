@@ -318,6 +318,47 @@ export function deepDump(): string {
     return lines.join("\n") + "\n";
 }
 
+/**
+ * Level and editor code (names and types only), plus the names of the files the game keeps its
+ * levels in, so a level-copy feature can be built against the real thing.
+ */
+export function levelDump(listDir: (dir: string) => { files: string[]; dirs: string[] }): string {
+    const lines: string[] = [];
+    lines.push("# ExoMenu levels dump (IL2CPP)");
+    lines.push(`# Unity ${safe(() => Il2Cpp.unityVersion)} · Exoracer ${safe(() => Il2Cpp.application.version ?? "?")} · ${new Date().toISOString()}`);
+    lines.push("# Class/method names and file names only. No level contents, no account data.");
+    lines.push("");
+    const game = Il2Cpp.domain.assemblies.filter(a => assemblyName(a).startsWith("Assembly-CSharp"));
+    lines.push("## Level, editor and Nova classes");
+    describeClasses(game, /Level|Editor|Nova|Prefab|Tile|Track|Map|Clipboard/, lines);
+    lines.push("");
+    lines.push("## Game data folder (names only, 3 levels deep)");
+    const root = safe(() => Il2Cpp.application.dataPath ?? "");
+    const persistent = safe(() => {
+        const app = Il2Cpp.domain.tryAssembly("UnityEngine.CoreModule")?.image.tryClass("UnityEngine.Application");
+        const s = app?.method<Il2Cpp.String>("get_persistentDataPath").invoke();
+        return s && !s.isNull() ? s.content ?? "" : "";
+    });
+    lines.push(`  dataPath: ${root}`);
+    lines.push(`  persistentDataPath: ${persistent}`);
+    let shown = 0;
+    const walk = (dir: string, depth: number, indent: string) => {
+        if (depth > 3 || shown > 500) return;
+        const { files, dirs } = listDir(dir);
+        for (const d of dirs) {
+            if (++shown > 500) return void lines.push(`${indent}… truncated`);
+            lines.push(`${indent}${d}/`);
+            walk(`${dir}/${d}`, depth + 1, indent + "  ");
+        }
+        const sample = files.slice(0, 15);
+        for (const f of sample) lines.push(`${indent}${f}`);
+        if (files.length > sample.length) lines.push(`${indent}… and ${files.length - sample.length} more files`);
+        shown += sample.length;
+    };
+    if (persistent && persistent !== "?") walk(persistent, 1, "    ");
+    return lines.join("\n") + "\n";
+}
+
 function describeClasses(assemblies: Il2Cpp.Assembly[], filter: RegExp, lines: string[]): void {
     let count = 0;
     for (const klass of allClasses(assemblies)) {

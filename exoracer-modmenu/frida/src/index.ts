@@ -1,7 +1,7 @@
 import "frida-il2cpp-bridge";
 import { setOwnEverything, status as ownStatus } from "./cosmetics.js";
 import { equipped } from "./game.js";
-import { ensureDir, unreadableNames } from "./fsutil.js";
+import { ensureDir, listDirs, listFiles, unreadableNames } from "./fsutil.js";
 import { serve, Request, Response } from "./http.js";
 import { iconCatalog, LOOKS_DEFAULTS, LooksSettings, looksMedia, looksNotes, startLooks, updateLooks } from "./looks.js";
 import { modsStatus, reloadMods, SavedModState, setFeature, setFeatureValue, setModEnabled, startMods, hasFeature, featureEnabled } from "./mods.js";
@@ -10,12 +10,12 @@ import { setCrashMarker, takeCrashMarker } from "./media.js";
 import { MUSIC_DEFAULTS, MusicSettings, musicStatus, pause, play, skip, startMusic, toggle as toggleMusic, updateMusic } from "./music.js";
 import { replaceWithConstant, revertTarget } from "./native.js";
 import { clearKey, DEFAULT_MENU_KEY, KeyBinding, keyState, listenForKey, revealFolder, setOverlaySize, startOverlay, toggleFromAgent } from "./overlay.js";
-import { deepDump, dump, scan, ScanResult, Target } from "./scanner.js";
+import { deepDump, dump, levelDump, scan, ScanResult, Target } from "./scanner.js";
 import { startThumbs, thumbnail, ThumbKind } from "./thumbs.js";
 import { PAGE } from "./ui.js";
 import { catalog, getExtraTrails, overrides, setExtraTrails, setOverride, Slot, SLOTS, traceEquipFlow } from "./wardrobe.js";
 
-const VERSION = "0.7.4";
+const VERSION = "0.7.5";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)
@@ -32,6 +32,7 @@ const FOLDERS = {
 const SETTINGS_PATH = `${DATA_DIR}/settings.json`;
 const DUMP_PATH = `${DATA_DIR}/cosmetics-dump.txt`;
 const DEEP_DUMP_PATH = `${DATA_DIR}/deep-dump.txt`;
+const LEVELS_DUMP_PATH = `${DATA_DIR}/levels-dump.txt`;
 const URL_PATH = `${DATA_DIR}/menu-url.txt`;
 
 // ── logging ─────────────────────────────────────────────────────────────────────────────
@@ -480,7 +481,8 @@ async function route(req: Request): Promise<Response> {
                 path: await Il2Cpp.perform(() => {
                     writeText(DUMP_PATH, dump(lastScan ?? rescan()));
                     writeText(DEEP_DUMP_PATH, deepDump());
-                    log(`Wrote ${DUMP_PATH} and ${DEEP_DUMP_PATH}`);
+                    writeText(LEVELS_DUMP_PATH, levelDump(dir => ({ files: listFiles(dir), dirs: listDirs(dir) })));
+                    log(`Wrote ${DUMP_PATH}, ${DEEP_DUMP_PATH} and ${LEVELS_DUMP_PATH}`);
                     return DATA_DIR;
                 }),
             });
