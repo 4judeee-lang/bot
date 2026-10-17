@@ -194,7 +194,9 @@ export const PAGE = `<!doctype html>
     next: "<path d='M5 4v16l10-8zM17 4h2v16h-2z' fill='currentColor' stroke='none'/>",
     prev: "<path d='M19 4v16L9 12zM5 4h2v16H5z' fill='currentColor' stroke='none'/>",
     folder: "<path d='M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/>",
-    refresh: "<path d='M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7'/>"
+    refresh: "<path d='M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7'/>",
+    flag: "<path d='M5 21V4M5 4h11l-2 4 2 4H5'/>",
+    copy: "<rect x='9' y='9' width='11' height='11' rx='2'/><path d='M5 15V6a2 2 0 0 1 2-2h9'/>"
   };
   function icon(name) { return "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'>" + ICON[name] + "</svg>"; }
 
@@ -210,6 +212,7 @@ export const PAGE = `<!doctype html>
     { group: "Fun" },
     { id: "Music", icon: "music", sub: "Your songs, in the game." },
     { id: "Mods", icon: "puzzle", sub: "Add-ons from the mods folder." },
+    { id: "Levels", icon: "flag", sub: "Copy levels into your editor to learn from them." },
     { group: "System" },
     { id: "Keybinds", icon: "key", sub: "Put any feature on a key." },
     { id: "Settings", icon: "gear", sub: "Colours, size and performance." },
@@ -420,6 +423,22 @@ export const PAGE = `<!doctype html>
     return html;
   }
 
+  function levelsTab() {
+    var L = state.levels || { copies: [], blocked: [] }, last = L.last;
+    var lastBody = last ? "<div class='row'><div class='grow'><div class='title'>" + esc(last.name) + (last.nova ? " <span class='tag'>Nova</span>" : "") + "</div><div class='desc'>" + (last.author ? "by " + esc(last.author) + " · " : "") + "the last level you played</div></div><button class='btn' data-level='copy'>" + icon("copy") + "Copy level</button></div>"
+      : "<div class='hint'>Play any custom level (just start it), then come back here to copy it.</div>";
+    var html = card("Copy a level", "Saves a copy of a custom level into ExoMenu's levels folder, ready to open in your own level editor.", "", lastBody);
+    var rows = L.copies.length ? L.copies.map(function (c) {
+      var tag = c.mine ? "<span class='tag ok'>Your level</span>" : "<span class='tag warn'>Practice copy</span>";
+      return "<div class='row' style='padding:10px 0;border-top:1px solid var(--line)'><div class='grow'><div class='title' style='font-size:13.5px'>" + esc(c.name) + " " + tag + (c.missing ? " <span class='tag bad'>File missing</span>" : "") + "</div><div class='desc'>" + (c.author ? "Original by " + esc(c.author) + " · " : "") + esc((c.date || "").slice(0, 10)) + "</div></div>" +
+        (c.missing ? "" : "<button class='btn small' data-level='open' data-file='" + esc(c.file) + "'>Open in editor</button>") + "<button class='btn ghost small' data-level='delete' data-file='" + esc(c.file) + "'>Remove</button></div>";
+    }).join("") : "<div class='hint'>No copies yet.</div>";
+    html += card("Your copies <span class='tag'>" + L.copies.length + "</span>", "Open the level editor in the game first, then click Open in editor. The game imports the copy as a new level in your editor.", "<button class='btn ghost small' data-level='reveal'>" + icon("folder") + "Open folder</button>", rows);
+    html += card("About copies", "", "", "<div class='desc' style='margin:0'>Copies of other players' levels are for learning and practice. Edit them and play them as much as you like, but ExoMenu blocks uploading them, because Exoracer has no setting for creators to allow copying. Copies of your own levels upload normally.</div>" +
+      "<div class='hint' style='margin-top:8px'>Upload block: " + esc(L.guard || "off") + ".</div>" + (L.blocked && L.blocked.length ? "<div class='sep'></div>" + L.blocked.map(function (b) { return "<div class='desc'>" + esc(b) + "</div>"; }).join("") : ""));
+    return html;
+  }
+
   function keybindsTab() {
     var K = state.keys, rows = K.actions.slice();
     state.mods.features.forEach(function (f) { rows.push({ id: "mod:" + f.key, label: f.name, group: "Mods" }); });
@@ -452,7 +471,7 @@ export const PAGE = `<!doctype html>
   }
 
   // ── render ─────────────────────────────────────────────────────────────────────────
-  var TABS = { Home: home, Wardrobe: wardrobeTab, Trails: trailsTab, Character: characterTab, Backgrounds: backgroundsTab, Profile: profileTab, Music: musicTab, Mods: modsTab, Keybinds: keybindsTab, Settings: settingsTab, Tools: toolsTab };
+  var TABS = { Home: home, Wardrobe: wardrobeTab, Trails: trailsTab, Character: characterTab, Backgrounds: backgroundsTab, Profile: profileTab, Music: musicTab, Mods: modsTab, Levels: levelsTab, Keybinds: keybindsTab, Settings: settingsTab, Tools: toolsTab };
   function badge(id) {
     if (!state) return false;
     var s = state.settings;
@@ -476,7 +495,7 @@ export const PAGE = `<!doctype html>
     if (html !== lastNav) { $("nav").innerHTML = html; lastNav = html; }
   }
   function searchAll(q) {
-    var index = [["Home", "own every skin rainbow name background music fps quick wearing"], ["Wardrobe", "wear skins glider hook trail own every skin owned outfit"], ["Trails", "extra trails multiple stack"], ["Character", "name colour color rainbow custom skin image gif"], ["Backgrounds", "background animated gif frames tint zoom wallpaper"], ["Profile", "profile picture pfp icon avatar"], ["Music", "music songs play volume shuffle repeat wav mp3"], ["Mods", "mods plugins javascript addons"], ["Keybinds", "keys keybinds shortcuts hotkeys"], ["Settings", "theme colour menu size fps performance about"], ["Tools", "shop dump record fix problem"]];
+    var index = [["Home", "own every skin rainbow name background music fps quick wearing"], ["Wardrobe", "wear skins glider hook trail own every skin owned outfit"], ["Trails", "extra trails multiple stack"], ["Character", "name colour color rainbow custom skin image gif"], ["Backgrounds", "background animated gif frames tint zoom wallpaper"], ["Profile", "profile picture pfp icon avatar"], ["Music", "music songs play volume shuffle repeat wav mp3"], ["Mods", "mods plugins javascript addons"], ["Levels", "copy level editor import custom levels"], ["Keybinds", "keys keybinds shortcuts hotkeys"], ["Settings", "theme colour menu size fps performance about"], ["Tools", "shop dump record fix problem"]];
     var hits = index.filter(function (e) { return (e[0] + " " + e[1]).toLowerCase().indexOf(q) >= 0; }).map(function (e) { return e[0]; });
     return hits.length ? card("Results for “" + esc(q) + "”", "", "", "<div class='row'>" + hits.map(function (h) { return "<button class='btn ghost small' data-goto='" + h + "'>" + h + "</button>"; }).join("") + "</div>") : "<div class='empty'>Nothing matches “" + esc(q) + "”.</div>";
   }
@@ -539,6 +558,10 @@ export const PAGE = `<!doctype html>
     if (d.mod) { var m = state.mods.mods.filter(function (x) { return x.file === d.mod; })[0]; return post("/api/mods", { action: "mod", file: d.mod, on: !(m && m.enabled) }); }
     if (d.modfeat) { var f = state.mods.features.filter(function (x) { return x.key === d.modfeat; })[0]; return post("/api/mods", { action: "feature", key: d.modfeat, on: !(f && f.enabled) }, null, function () { f.enabled = !f.enabled; }); }
     if (d.modval && d.type === "toggle") { var ff = state.mods.features.filter(function (x) { return x.key === d.modval; })[0]; var nv = !(ff && ff.values[d.id]); return post("/api/mods", { action: "value", key: d.modval, id: d.id, value: nv }, null, function () { ff.values[d.id] = nv; }); }
+    if (d.level) {
+      var okText = { copy: "Copied! Open the level editor, then click Open in editor.", open: "Opened in your editor", delete: "Removed" }[d.level];
+      return post("/api/levels", { action: d.level, file: d.file }, okText || null);
+    }
     if (d.keyListen) return post("/api/keys", { action: "listen", id: d.keyListen }, null, function (s) { s.keys.listeningFor = d.keyListen; });
     if (d.keyClear) return post("/api/keys", { action: "clear", id: d.keyClear });
     if (d.theme) { var parts = d.theme.split(","); setTheme(parts[0], parts[1]); store("exomenu-accent", d.theme); lastView = ""; return render(); }

@@ -29,6 +29,7 @@ const s: any = {
         features: [{ key: "example-hello.js:hello", mod: "example-hello.js", name: "Say hello", description: "Logs a message.", enabled: false, settings: [{ id: "text", label: "Message", type: "text", default: "hi" }, { id: "loud", label: "Shout", type: "toggle", default: false }], values: { text: "hi", loud: false } }],
     },
     unlock: { status: "Off.", skipped: [] },
+    levels: { last: { id: "lvl1", version: 3, name: "Sky Loop", author: "speedy", nova: false }, copies: [] as any[], guard: "on", blocked: [], dir: "/x/levels" },
 };
 const wardrobe = { items: { skin: ["edm", "mummy", "bee_costume", "ninja"], gliderSkin: ["rocket"], hookSkin: ["pearl_hook"], trail: ["default", "black_and_white", "fire"] }, owned: { skin: ["mummy"], gliderSkin: ["rocket"], hookSkin: ["pearl_hook"], trail: ["default"] } };
 const media = {
@@ -96,6 +97,11 @@ serve(7777, req => {
         case "/api/wardrobe":
             if (b.id) s.wardrobe[b.slot] = b.id;
             else delete s.wardrobe[b.slot];
+            break;
+        case "/api/levels":
+            if (b.action === "copy") s.levels.copies.unshift({ file: "Copy of Sky Loop.exolevel", name: "Copy of Sky Loop", author: "speedy", mine: false, date: "2026-10-17T10:00:00Z", missing: false });
+            if (b.action === "delete") s.levels.copies = s.levels.copies.filter((c: any) => c.file !== b.file);
+            if (b.action === "open") return { status: 500, type: "application/json", body: JSON.stringify({ error: "Open the level editor first, then click Open in editor again." }) };
             break;
         case "/api/ui":
             s.settings.ui = { width: b.width, height: b.height };

@@ -5,6 +5,7 @@ import { ensureDir, listDirs, listFiles, unreadableNames } from "./fsutil.js";
 import { serve, Request, Response } from "./http.js";
 import { iconCatalog, LOOKS_DEFAULTS, LooksSettings, looksMedia, looksNotes, startLooks, updateLooks } from "./looks.js";
 import { modsStatus, reloadMods, SavedModState, setFeature, setFeatureValue, setModEnabled, startMods, hasFeature, featureEnabled } from "./mods.js";
+import { copyLastLevel, CopiedLevel, deleteCopy, levelsStatus, openInEditor, startLevels } from "./levels.js";
 import { installSafeCalls } from "./safecall.js";
 import { setCrashMarker, takeCrashMarker } from "./media.js";
 import { MUSIC_DEFAULTS, MusicSettings, musicStatus, pause, play, skip, startMusic, toggle as toggleMusic, updateMusic } from "./music.js";
@@ -15,7 +16,7 @@ import { startThumbs, thumbnail, ThumbKind } from "./thumbs.js";
 import { PAGE } from "./ui.js";
 import { catalog, getExtraTrails, overrides, setExtraTrails, setOverride, Slot, SLOTS, traceEquipFlow } from "./wardrobe.js";
 
-const VERSION = "0.7.5";
+const VERSION = "0.8.0";
 const FIRST_PORT = 7777;
 
 // …/Exoracer/Exoracer.app/Contents/MacOS/Exoracer → …/Exoracer/ExoMenu (made by install-macos.sh)
@@ -27,6 +28,7 @@ const FOLDERS = {
     pfp: `${DATA_DIR}/profile-pictures`,
     music: `${DATA_DIR}/music`,
     mods: `${DATA_DIR}/mods`,
+    levels: `${DATA_DIR}/levels`,
     main: DATA_DIR,
 };
 const SETTINGS_PATH = `${DATA_DIR}/settings.json`;
@@ -80,6 +82,7 @@ interface Settings {
     music: MusicSettings;
     mods: SavedModState;
     ui: { width: number; height: number };
+    copiedLevels: CopiedLevel[];
 }
 
 const DEFAULTS: Settings = {
@@ -93,6 +96,7 @@ const DEFAULTS: Settings = {
     ownEverything: false,
     extraTrails: [],
     keybinds: { menu: DEFAULT_MENU_KEY },
+    copiedLevels: [],
     looks: { ...LOOKS_DEFAULTS },
     lastBackground: null,
     music: { ...MUSIC_DEFAULTS },
@@ -267,6 +271,7 @@ const ACTIONS: { id: string; label: string; group: string }[] = [
     { id: "music.next", label: "Next song", group: "Music" },
     { id: "music.prev", label: "Previous song", group: "Music" },
     { id: "fps.toggle", label: "Unlock FPS on / off", group: "Performance" },
+    { id: "level.copy", label: "Copy the level I last played", group: "Levels" },
 ];
 
 async function runAction(action: string): Promise<void> {
@@ -274,6 +279,8 @@ async function runAction(action: string): Promise<void> {
     switch (action) {
         case "menu":
             return toggleFromAgent();
+        case "level.copy":
+            return void (await Il2Cpp.perform(() => copyLastLevel(), "main"));
         case "own.toggle":
             return setOwn(ownStatus() === "Off.");
         case "wardrobe.clear":
@@ -325,6 +332,7 @@ function state() {
         music: musicStatus(),
         mods: modsStatus(),
         notes: [...startupNotes, ...looksNotes()],
+        levels: levelsStatus(),
         unlock: { status: unlockStatus, skipped: lastScan?.skipped ?? [] },
     };
 }
@@ -467,6 +475,18 @@ async function route(req: Request): Promise<Response> {
             saveSettings();
             return json(state());
         }
+        case "/api/levels": {
+            const file = String(body.file ?? "");
+            if (body.action === "copy") {
+                const copy = await Il2Cpp.perform(() => copyLastLevel(), "main");
+                return json({ ...state(), copied: copy.file });
+            }
+            if (body.action === "open") await Il2Cpp.perform(() => openInEditor(file), "main");
+            else if (body.action === "delete") deleteCopy(file);
+            else if (body.action === "reveal") revealFolder(FOLDERS.levels);
+            else return json({ error: "unknown levels action" }, 400);
+            return json(state());
+        }
         case "/api/wardrobe":
             if (!SLOTS.includes(body.slot)) return json({ error: `unknown slot ${body.slot}` }, 400);
             if (!(await Il2Cpp.perform(() => setOverride(body.slot, body.id ? String(body.id) : null, log))))
@@ -559,6 +579,19 @@ Il2Cpp.perform(async () => {
         }
         startLooks(settings.looks, FOLDERS, log);
     });
+    step("levels", () =>
+        startLevels(
+            FOLDERS.levels,
+            {
+                copies: () => settings.copiedLevels ?? [],
+                saveCopies: c => {
+                    settings.copiedLevels = c;
+                    saveSettings();
+                },
+            },
+            log,
+        ),
+    );
     step("thumbnails", () => startThumbs(`${DATA_DIR}/.thumbnails`, log));
     step("music", () => startMusic(FOLDERS.music, settings.music, log));
     step("mods", () =>

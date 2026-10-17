@@ -39,12 +39,10 @@ export function installSafeCalls(log: (m: string) => void): void {
         try {
             if (!m.class.isValueType) {
                 const params = m.parameters.map(p => p.type);
-                if (!params.some(t => t.isByReference)) {
-                    const ret = m.returnType;
-                    const retVoid = ret.enumValue === VOID;
-                    const retValue = !retVoid && ret.class.isValueType;
-                    plan = { params, ret, retVoid, retValue, retSize: retValue ? ret.class.valueTypeSize : 0 };
-                }
+                const ret = m.returnType;
+                const retVoid = ret.enumValue === VOID;
+                const retValue = !retVoid && ret.class.isValueType;
+                plan = { params, ret, retVoid, retValue, retSize: retValue ? ret.class.valueTypeSize : 0 };
             }
         } catch {
             plan = null;
@@ -54,6 +52,11 @@ export function installSafeCalls(log: (m: string) => void): void {
     }
 
     function argument(value: unknown, type: Il2Cpp.Type): NativePointer {
+        // `out`/`ref` parameters: the caller passes a pointer to its own slot, which is what the runtime wants.
+        if (type.isByReference) {
+            if (value instanceof NativePointer) return value;
+            throw new Error("by-reference argument must be a pointer");
+        }
         if (!type.class.isValueType) {
             if (value === null || value === undefined) return NULL;
             if (value instanceof NativePointer) return value;
