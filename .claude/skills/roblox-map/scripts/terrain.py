@@ -59,7 +59,10 @@ VOXEL = 4.0
 
 # Roblox Terrain materials this module may paint. Order is the on-disk index.
 MATERIALS = ["Grass", "Sand", "Rock", "Ground", "Cobblestone", "Mud", "Slate",
-             "LeafyGrass", "Limestone", "Basalt", "Salt", "WoodPlanks"]
+             "LeafyGrass", "Limestone", "Basalt", "Salt", "WoodPlanks",
+             # appended (indices above unchanged) for biome worlds: snow peaks,
+             # lava fields, desert stone and city ground
+             "Snow", "Glacier", "CrackedLava", "Sandstone", "Concrete", "Asphalt"]
 MAT = {n: i for i, n in enumerate(MATERIALS)}
 
 PREVIEW_RGB = {
@@ -67,6 +70,8 @@ PREVIEW_RGB = {
     "Ground": (138, 108, 84), "Cobblestone": (126, 136, 168), "Mud": (96, 82, 70),
     "Slate": (96, 106, 136), "LeafyGrass": (58, 150, 60), "Limestone": (200, 196, 180),
     "Basalt": (70, 72, 84), "Salt": (230, 230, 226), "WoodPlanks": (130, 116, 128),
+    "Snow": (236, 242, 250), "Glacier": (170, 214, 240), "CrackedLava": (226, 92, 34),
+    "Sandstone": (204, 160, 96), "Concrete": (150, 150, 170), "Asphalt": (64, 60, 84),
 }
 
 

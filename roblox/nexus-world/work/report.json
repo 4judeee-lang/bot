@@ -1,0 +1,331 @@
+{
+  "map": "NexusWorld",
+  "result": "WARN",
+  "checks": [
+    {
+      "id": "P1",
+      "title": "Grounding",
+      "status": "PASS",
+      "detail": "every part with a declared grounding sits as declared",
+      "rows": []
+    },
+    {
+      "id": "P2",
+      "title": "Standable surface",
+      "status": "PASS",
+      "detail": "4625 nodes across 0 walk-connected components",
+      "rows": [
+        "note: 53 component(s) made only of decoration were not analysed: decoration is never a declared destination",
+        "note: spawn (-510, 61, -52) has no standable surface within 8 studs"
+      ]
+    },
+    {
+      "id": "P3",
+      "title": "Intent match",
+      "status": "PASS",
+      "detail": "every surface is reachable exactly as declared",
+      "rows": []
+    },
+    {
+      "id": "P2b",
+      "title": "Recovery margin",
+      "status": "PASS",
+      "detail": "no return route runs the climb budget to zero",
+      "rows": []
+    },
+    {
+      "id": "P4",
+      "title": "Anchor legitimacy",
+      "status": "PASS",
+      "detail": "every declared anchor is solid, visible and in range",
+      "rows": []
+    },
+    {
+      "id": "P5",
+      "title": "Sightlines",
+      "status": "INFO",
+      "detail": "too few standable nodes to sample",
+      "rows": []
+    },
+    {
+      "id": "P6",
+      "title": "Overlap",
+      "status": "PASS",
+      "detail": "no structural parts interpenetrate (0 structural, 123 decorative skipped)",
+      "rows": []
+    },
+    {
+      "id": "P7",
+      "title": "Role coverage",
+      "status": "PASS",
+      "detail": "every shipped movement tech has somewhere to live",
+      "rows": [
+        "roles: "
+      ]
+    },
+    {
+      "id": "P8",
+      "title": "Symmetry",
+      "status": "INFO",
+      "detail": "no congruent ring of 3 or more parts to check",
+      "rows": []
+    },
+    {
+      "id": "P9",
+      "title": "Ring-out counterplay",
+      "status": "INFO",
+      "detail": "no ring-out declared",
+      "rows": []
+    },
+    {
+      "id": "P10",
+      "title": "Coplanar surfaces",
+      "status": "PASS",
+      "detail": "no coplanar overlapping faces",
+      "rows": []
+    },
+    {
+      "id": "P11",
+      "title": "Empty space",
+      "status": "INFO",
+      "detail": "nothing standable to sample",
+      "rows": []
+    },
+    {
+      "id": "P12",
+      "title": "Entrances",
+      "status": "INFO",
+      "detail": "no part declares a facing",
+      "rows": []
+    },
+    {
+      "id": "P13",
+      "title": "Feature dressing",
+      "status": "PASS",
+      "detail": "every water feature and landmark has props around it",
+      "rows": [
+        "SpireBase: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SpireTier: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "Spire: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SpireCore: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalVerdantPostL: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalVerdantPostR: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalVerdantLintel: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalVerdantGate: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalShadowwoodPostL: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalShadowwoodPostR: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalShadowwoodLintel: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalShadowwoodGate: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalFrostpeakPostL: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalFrostpeakPostR: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalFrostpeakLintel: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalFrostpeakGate: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalCelestiaPostL: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalCelestiaPostR: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalCelestiaLintel: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalCelestiaGate: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalChromaPostL: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalChromaPostR: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalChromaLintel: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalChromaGate: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalSandsweptPostL: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalSandsweptPostR: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalSandsweptLintel: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalSandsweptGate: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalAzurePostL: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalAzurePostR: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalAzureLintel: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalAzureGate: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalEmberfallPostL: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalEmberfallPostR: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalEmberfallLintel: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "PortalEmberfallGate: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "MeadowHatcheryDais: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "MeadowHatcheryRing: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "MeadowHatcheryPedestal: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "MeadowHatcheryEgg: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "CursedNestDais: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "CursedNestRing: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "CursedNestPedestal: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "CursedNestEgg: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "EggNestDais: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "EggNestRing: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "EggNestPedestal: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "EggNestEgg: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "HatchPodsDais: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "HatchPodsRing: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "HatchPodsPedestal: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "HatchPodsEgg: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "AncientHatcheryDais: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "AncientHatcheryRing: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "AncientHatcheryPedestal: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "AncientHatcheryEgg: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "CoralHatcheryDais: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "CoralHatcheryRing: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "CoralHatcheryPedestal: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "CoralHatcheryEgg: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "MagmaHatcheryDais: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "MagmaHatcheryRing: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "MagmaHatcheryPedestal: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "MagmaHatcheryEgg: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyIsle1: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyIsle1Root: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyIsle2: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyIsle2Root: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyIsle3: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyIsle3Root: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyIsle4: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyIsle4Root: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyIsle5: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyIsle5Root: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyIsle6: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyIsle6Root: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyIsle7: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyIsle7Root: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyIsle8: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyIsle8Root: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyPalaceTower1: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyPalaceTower2: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyPalaceTower3: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyPalaceTower4: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "SkyHatcheryEgg: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "Tower1: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "Tower1Trim: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "Tower2: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "Tower2Trim: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "Tower3: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "Tower3Trim: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "Tower4: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "Tower4Trim: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "Tower5: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "Tower5Trim: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "Tower6: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "Tower6Trim: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "Tower7: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "Tower7Trim: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "Tower8: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "Tower8Trim: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "Lighthouse: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "LighthouseLamp: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "ShadowCastle1: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "ShadowCastle2: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "ShadowCastle3: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "ShadowCastle4: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "RuinArch1PostL: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "RuinArch1PostR: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "RuinArch1Top: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "RuinArch2PostL: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "RuinArch2PostR: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "RuinArch2Top: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "RuinArch3PostL: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "RuinArch3PostR: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "RuinArch3Top: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "RuinArch4PostL: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "RuinArch4PostR: exempt - greybox landmark; dressing props arrive with the mesh pass",
+        "RuinArch4Top: exempt - greybox landmark; dressing props arrive with the mesh pass"
+      ]
+    },
+    {
+      "id": "P14",
+      "title": "Props in water",
+      "status": "INFO",
+      "detail": "no water declared",
+      "rows": []
+    },
+    {
+      "id": "P15",
+      "title": "Clear routes",
+      "status": "INFO",
+      "detail": "no routes declared",
+      "rows": []
+    },
+    {
+      "id": "P16",
+      "title": "Enclosure",
+      "status": "PASS",
+      "detail": "perimeter sealed by 4 barrier(s) at 1316 samples",
+      "rows": []
+    },
+    {
+      "id": "P21",
+      "title": "Performance budget",
+      "status": "INFO",
+      "detail": "no meshes placed; 123 instances",
+      "rows": []
+    },
+    {
+      "id": "T1",
+      "title": "Flatness",
+      "status": "PASS",
+      "detail": "0.1% of undesigned land flat, pads 10% of land",
+      "rows": []
+    },
+    {
+      "id": "T2",
+      "title": "Relief",
+      "status": "PASS",
+      "detail": "land p5-p95 33-155 studs, gentle ground levels at [38, 59, 83]",
+      "rows": []
+    },
+    {
+      "id": "T3",
+      "title": "Boxiness",
+      "status": "PASS",
+      "detail": "8 cliff region(s) judged; map-wide 16% of steep faces axis-aligned (organic about 13-25%; a region over 60% fails)",
+      "rows": []
+    },
+    {
+      "id": "T4",
+      "title": "Tides",
+      "status": "PASS",
+      "detail": "zones proven at both tides (NexusPlaza:always, LighthouseIsle:swim, PalmIsle:swim, MeadowHatchery:always, CursedNest:always, EggNest:always, HatchPods:always, AncientHatchery:always, CoralHatchery:always, MagmaHatchery:always), low 24 / high 28",
+      "rows": []
+    },
+    {
+      "id": "T5",
+      "title": "Caves",
+      "status": "INFO",
+      "detail": "no caves declared",
+      "rows": []
+    },
+    {
+      "id": "T6",
+      "title": "Coast",
+      "status": "WARN",
+      "detail": "coast is 71% cliff, 11% beach over 6516 studs",
+      "rows": [
+        "a single-character coast reads as generated"
+      ]
+    },
+    {
+      "id": "T7",
+      "title": "Earthworks",
+      "status": "PASS",
+      "detail": "9 road(s), worst fill 25 / cut 6 studs (limit 32)",
+      "rows": []
+    },
+    {
+      "id": "T8",
+      "title": "Cliff cover",
+      "status": "WARN",
+      "detail": "17099 steep columns (45 degrees or more) of bare voxel cliff",
+      "rows": [
+        "bare voxel cliffs render as small triangles; cover them with your own cliff models or soften the landform profiles"
+      ]
+    },
+    {
+      "id": "T9",
+      "title": "Empty land",
+      "status": "INFO",
+      "detail": "not dressed yet: no part carries a mesh or the prop role",
+      "rows": []
+    },
+    {
+      "id": "T10",
+      "title": "Spawn",
+      "status": "PASS",
+      "detail": "(-510, -52) ground 58, 0 deg - confirm with the playtest probe",
+      "rows": []
+    }
+  ]
+}
