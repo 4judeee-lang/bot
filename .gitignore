@@ -11,3 +11,5 @@ npm-debug.log*
 logs/
 *.log
 .claude/skills/*/LOCAL.md
+__pycache__/
+*.pyc
