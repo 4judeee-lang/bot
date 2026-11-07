@@ -41,6 +41,26 @@ def real_usage():
         return None
 
 
+def effort_for(cwd):
+    """Effort level from env or settings (project local > project > user). Per-session /effort changes aren't stored anywhere I can read."""
+    if os.environ.get("CLAUDE_CODE_EFFORT_LEVEL"):
+        return os.environ["CLAUDE_CODE_EFFORT_LEVEL"]
+    paths = []
+    if cwd:
+        paths += [os.path.join(cwd, ".claude", "settings.local.json"), os.path.join(cwd, ".claude", "settings.json")]
+    paths.append(os.path.expanduser("~/.claude/settings.json"))
+    for p in paths:
+        try:
+            with open(p) as f:
+                j = json.load(f)
+            for k in ("effortLevel", "effort"):
+                if j.get(k):
+                    return str(j[k])
+        except Exception:
+            pass
+    return ""
+
+
 def agents():
     """Recently active Claude Code sessions from ~/.claude/projects/*/*.jsonl (newest first)."""
     base = os.path.expanduser("~/.claude/projects")
@@ -72,7 +92,7 @@ def agents():
                     if m and not m.startswith("<"):
                         model = m
                         break
-            found.append({"model": short_model(model), "dir": os.path.basename(cwd) or "?", "age": age})
+            found.append({"effort": effort_for(cwd), "model": short_model(model), "dir": os.path.basename(cwd) or "?", "age": age})
     except Exception:
         pass
     return found
@@ -95,7 +115,7 @@ def view(daily, blocks, w, usage=None, ags=None):
             live = a["age"] < 45
             dot = paint("●", GREEN if live else DIM)
             state = "working" if live else fmt_dur(a["age"]) + " ago"
-            L.append(f"  {dot} {paint(a['model'].ljust(11), TEXT, True)} {paint(a['dir'][:16].ljust(16), CYAN)} {paint(state, DIM)}")
+            L.append(f"  {dot} {paint(a['model'].ljust(11), TEXT, True)} {paint(a['dir'][:14].ljust(14), CYAN)} {paint((a.get('effort') or '-').ljust(7), PURPLE)} {paint(state, DIM)}")
     else:
         L.append("  " + paint("no active sessions", DIM))
     L.append("")
