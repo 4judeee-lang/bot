@@ -126,6 +126,22 @@ def render_art(path, cols, rows):
     return [ph] * rows
 
 
+KITTY = os.environ.get("DASH_ART", "kitty") == "kitty"
+
+
+def kitty_art(path, cols, rows):
+    """Real (non-blurry) image via the kitty graphics protocol; works in Ghostty, through tmux passthrough."""
+    if not (path and shutil.which("chafa")):
+        return ""
+    try:
+        out = subprocess.run(["chafa", "-f", "kitty", "--passthrough", "tmux" if os.environ.get("TMUX") else "none",
+                              "--size", f"{cols}x{rows}", "--animate", "off", path],
+                             capture_output=True, text=True, timeout=5).stdout
+        return "\x1b7\x1b[2;1H" + out + "\x1b8"
+    except Exception:
+        return ""
+
+
 def mmss(s):
     s = int(max(0, s))
     return f"{s // 60}:{s % 60:02d}"
@@ -142,6 +158,7 @@ def main():
     old = termios.tcgetattr(fd)
     tty.setcbreak(fd)
     st, last_poll, art_key, art_lines, art_dim = None, 0, None, [], None
+    art_seq, art_at = "", 0
     try:
         while True:
             now = time.time()
@@ -162,7 +179,13 @@ def main():
                 rows = max(5, min(h - 3, cols // 2))
                 key = (st["title"], st["album"], cols, rows)
                 if key != art_key:
-                    art_lines = render_art(art_file(st), cols, rows)
+                    path = art_file(st)
+                    if KITTY and path:
+                        art_lines = [""] * rows
+                        sys.stdout.write("\x1b[2J")
+                        art_seq, art_at = kitty_art(path, cols, rows), 0
+                    else:
+                        art_lines, art_seq = render_art(path, cols, rows), ""
                     art_key = key
                 playing = st["state"] == "playing"
                 bw = max(8, w - cols - 24)
@@ -182,11 +205,18 @@ def main():
                 ]
                 top = max(0, (len(art_lines) - len(info)) // 2)
                 for i in range(max(len(art_lines), len(info) + top)):
-                    a = art_lines[i] if i < len(art_lines) else " " * cols
                     j = i - top
                     t = info[j] if 0 <= j < len(info) else ""
-                    lines.append(a + RESET + "  " + t)
+                    if art_seq:
+                        lines.append(f"\x1b[{cols + 3}G" + t)
+                    else:
+                        a = art_lines[i] if i < len(art_lines) else " " * cols
+                        lines.append(a + RESET + "  " + t)
             draw([""] + lines)
+            if art_seq and (art_at == 0 or time.time() - art_at > 10):
+                sys.stdout.write(art_seq)
+                sys.stdout.flush()
+                art_at = time.time()
             r, _, _ = select.select([sys.stdin], [], [], 0.25)
             if r:
                 ch = sys.stdin.read(1)
