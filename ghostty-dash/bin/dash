@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Builds the dashboard layout in tmux, or re-attaches if it already exists.
+set -euo pipefail
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+S=dash
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+export DASH_DIR="$DIR"
+
+if tmux has-session -t "$S" 2>/dev/null; then exec tmux attach -t "$S"; fi
+
+tmux -f "$DIR/tmux.conf" new-session -d -s "$S" -x "${COLUMNS:-200}" -y "${LINES:-55}" -c "$HOME"
+term=$(tmux display -p -t "$S" '#{pane_id}')
+
+# right column: claude / storage / clock
+claude=$(tmux split-window -h -l 38% -P -F '#{pane_id}' -t "$term" "python3 $DIR/panels/claude.py")
+rest=$(tmux split-window -v -l 58% -P -F '#{pane_id}' -t "$claude" "python3 $DIR/panels/storage.py")
+clock=$(tmux split-window -v -l 62% -P -F '#{pane_id}' -t "$rest" "python3 $DIR/panels/clock.py")
+
+# left column top: music | visualizer
+music=$(tmux split-window -v -b -l 30% -P -F '#{pane_id}' -t "$term" "python3 $DIR/panels/music.py")
+viz=$(tmux split-window -h -l 42% -P -F '#{pane_id}' -t "$music" "$DIR/panels/viz.sh")
+
+for p in "$term:terminal" "$music:music" "$viz:visualizer" "$claude:claude" "$rest:storage" "$clock:clock"; do
+  tmux set-option -p -t "${p%%:*}" @t "${p#*:}"
+done
+tmux select-pane -t "$term"
+exec tmux attach -t "$S"

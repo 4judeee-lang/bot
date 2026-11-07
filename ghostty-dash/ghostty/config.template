@@ -1,0 +1,24 @@
+# Ghostty config for the dashboard look. install.sh fills in __DASH__.
+theme = dash
+
+font-family = JetBrains Mono
+font-size = 13
+adjust-cell-height = 10%
+
+background-opacity = 0.88
+background-blur-radius = 30
+window-padding-x = 18
+window-padding-y = 14
+window-padding-balance = true
+window-decoration = auto
+macos-titlebar-style = transparent
+window-save-state = always
+
+cursor-style = bar
+cursor-style-blink = false
+mouse-hide-while-typing = true
+copy-on-select = clipboard
+confirm-close-surface = false
+
+# Launch the dashboard (tmux layout) instead of a bare shell.
+command = __DASH__/bin/dash

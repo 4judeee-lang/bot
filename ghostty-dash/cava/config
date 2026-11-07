@@ -1,0 +1,21 @@
+[general]
+framerate = 30
+bars = 0
+bar_width = 3
+bar_spacing = 1
+
+[input]
+# macOS can't capture system audio natively: install BlackHole and route
+# output through a Multi-Output Device, then set source to its name.
+method = portaudio
+source = auto
+
+[output]
+method = ncurses
+orientation = bottom
+
+[color]
+gradient = 1
+gradient_count = 2
+gradient_color_1 = '#c8a2f8'
+gradient_color_2 = '#7fd0e8'

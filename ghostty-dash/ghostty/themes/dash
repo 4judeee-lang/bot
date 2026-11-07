@@ -1,0 +1,24 @@
+# "dash" — dark charcoal with lavender / sky accents
+background = 1b1b1e
+foreground = d4d4d8
+cursor-color = c8a2f8
+cursor-text = 1b1b1e
+selection-background = 3b3548
+selection-foreground = f0e8ff
+
+palette = 0=#26262b
+palette = 1=#e88aa0
+palette = 2=#8fd18f
+palette = 3=#e8d17a
+palette = 4=#7fb4f0
+palette = 5=#c8a2f8
+palette = 6=#7fd0e8
+palette = 7=#c8c8d0
+palette = 8=#55555f
+palette = 9=#f2a0b4
+palette = 10=#a6e3a6
+palette = 11=#f2e094
+palette = 12=#9cc8f8
+palette = 13=#dcc0ff
+palette = 14=#9ae0f2
+palette = 15=#f0f0f4
