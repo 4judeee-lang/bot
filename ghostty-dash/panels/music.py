@@ -30,11 +30,22 @@ return "off"
 '''
 
 
+LAST_ERR = [""]
+
+
 def osa(script, app=None):
     try:
-        return subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=3).stdout.strip()
-    except Exception:
-        return "off"
+        r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=5)
+        if r.returncode != 0:
+            LAST_ERR[0] = (r.stderr or "osascript failed").strip().splitlines()[-1]
+            return "error"
+        return r.stdout.strip()
+    except FileNotFoundError:
+        LAST_ERR[0] = "osascript not found (this only works on macOS)"
+        return "error"
+    except Exception as e:
+        LAST_ERR[0] = str(e)
+        return "error"
 
 
 def num(s, d=0.0):
@@ -45,8 +56,12 @@ def num(s, d=0.0):
 
 
 def get_state():
+    err = None
     for app, script in (("Spotify", SPOTIFY), ("Music", MUSIC)):
         r = osa(script)
+        if r == "error":
+            err = err or {"app": app, "state": "error", "error": LAST_ERR[0]}
+            continue
         if r in ("off", ""):
             continue
         if r == "stopped":
@@ -61,7 +76,7 @@ def get_state():
             dur /= 1000
         return {"app": app, "state": p[0], "title": p[1], "artist": p[2], "album": p[3],
                 "pos": num(p[4]), "dur": dur, "art": p[6], "vol": int(num(p[7]))}
-    return None
+    return err
 
 
 def music_art_file(key):
@@ -90,10 +105,10 @@ def art_file(st):
         return None
     path = os.path.join(CACHE, hashlib.md5(url.encode()).hexdigest() + ".img")
     if not os.path.exists(path):
-        try:
-            with urllib.request.urlopen(url, timeout=5) as r, open(path, "wb") as f:
-                f.write(r.read())
-        except Exception:
+        r = subprocess.run(["curl", "-sSfL", "--max-time", "8", "-o", path, url], capture_output=True)
+        if r.returncode != 0:
+            if os.path.exists(path):
+                os.remove(path)
             return None
     return path
 
@@ -134,7 +149,13 @@ def main():
                 st, last_poll = get_state(), now
             w, h = size()
             lines = []
-            if not st or st["state"] == "stopped":
+            if st and st["state"] == "error":
+                e = st["error"]
+                lines = ["", "  " + paint("can't talk to " + st["app"], PURPLE, True), "  " + paint(e[: w - 4], DIM)]
+                if "-1743" in e or "not allowed" in e.lower() or "authoriz" in e.lower():
+                    lines += ["", "  " + paint("macOS blocked it: System Settings > Privacy &", TEXT),
+                              "  " + paint("Security > Automation > enable Spotify for Ghostty", TEXT)]
+            elif not st or st["state"] == "stopped":
                 lines = ["", "  " + paint("nothing playing", DIM), "  " + paint("open Spotify or Music and hit play", DIM)]
             else:
                 cols = max(10, min(22, w // 3))

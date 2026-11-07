@@ -19,19 +19,21 @@ TOP, BOT = PINK, CYAN
 
 
 def render(text, scale):
+    """Chunky pixel digits: each pixel is 2 cols x 1 row (x scale), 2-pixel gap between glyphs."""
     rows = []
     for r in range(5):
         row = ""
-        for ch in text:
+        for i, ch in enumerate(text):
             for px in FONT[ch][r]:
                 row += ("█" if px == "1" else " ") * 2 * scale
-            row += " " * scale
+            if i < len(text) - 1:
+                row += " " * 2 * scale
         rows.append(row)
     out = []
+    n = 5 * scale
     for r, row in enumerate(rows):
-        c = lerp(TOP, BOT, r / 4)
-        for _ in range(scale):
-            out.append(paint(row, c))
+        for k in range(scale):
+            out.append(paint(row, lerp(TOP, BOT, (r * scale + k) / max(1, n - 1))))
     return out
 
 
@@ -44,23 +46,17 @@ def main():
         text = f"{hh:d}:{now.tm_min:02d}"
         scale = 1
         for s in (3, 2):
-            need = sum((len(FONT[c][0]) * 2 + 1) * s for c in text)
-            if need + 8 <= w and 5 * s + 4 <= h:
+            need = sum(len(FONT[c][0]) * 2 * s for c in text) + 2 * s * (len(text) - 1)
+            if need <= w - 2 and 5 * s + 4 <= h:
                 scale = s
                 break
         big = render(text, scale)
-        suffix = paint(f"{now.tm_sec:02d}", DIM) + "  " + paint(time.strftime("%p", now), DIM)
-        date = paint(time.strftime("%A, %B ") + str(now.tm_mday), TEXT)
-        frac = (now.tm_sec) / 60
+        sub = paint(time.strftime("%A, %B ") + str(now.tm_mday), TEXT) + paint(time.strftime("  ·  %I:%M:%S %p").replace(" 0", " ", 1), DIM)
         pw = min(w - 6, 40)
-        prog = paint("─" * int(pw * frac), PURPLE) + paint("─" * (pw - int(pw * frac)), TRACK)
-        block = big + ["", center(date, w), "", center(prog, w)]
-        top = max(0, (h - len(block)) // 2)
-        lines = [""] * top
-        for i, l in enumerate(big):
-            extra = ("  " + suffix) if i == len(big) // 2 else ""
-            lines.append(center(l + extra, w))
-        lines += block[len(big):]
+        n = int(pw * now.tm_sec / 60)
+        prog = paint("─" * n, PURPLE) + paint("─" * (pw - n), TRACK)
+        block = [center(l, w) for l in big] + ["", center(sub, w), center(prog, w)]
+        lines = [""] * max(0, (h - len(block)) // 2) + block
         draw(lines)
         time.sleep(1)
 
